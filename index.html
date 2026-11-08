@@ -62,8 +62,6 @@ body {
   font: 700 17px/1.32 var(--f-title); margin: 0; flex: 1 1 auto; min-width: 0; text-wrap: balance;
   display: -webkit-box; -webkit-line-clamp: 5; -webkit-box-orient: vertical; overflow: hidden;
 }
-.where { display: flex; align-items: center; gap: 6px; padding: 0 16px 14px 20px; color: var(--muted); font-variant-numeric: tabular-nums; }
-.where .count { flex: 1 1 auto; text-align: center; font-size: 13px; }
 .actions { display: grid; gap: 8px; padding: 0 16px 14px 20px; }
 .actions:empty { display: none; }
 .label { margin: 0; padding: 14px 20px 6px; font-size: 11px; font-weight: 400; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); border-top: 1px solid var(--line); }
@@ -75,7 +73,6 @@ body {
 .toc a[aria-current="true"] { background: var(--teal-soft); color: var(--teal); font-weight: 700; }
 .toc a[aria-current="true"] small, .toc a[aria-current="true"] .pg { color: var(--teal); }
 .side-foot { flex: none; border-top: 1px solid var(--line); padding: 14px 16px 16px 20px; display: grid; gap: 10px; }
-.side-foot p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.45; }
 
 /* sidebar as a slide-in panel (narrow screens, phones, or hidden by the reader) */
 body:not(.docked) .side {
@@ -106,10 +103,22 @@ body.phone .stage { padding: 8px; }
 .tapzones { position: absolute; inset: 0; display: grid; grid-template-columns: 30% 40% 30%; z-index: 5; }
 .tapzones button { background: transparent; border: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
 
-/* Flip figure when the sidebar is not on screen */
-.pill { position: fixed; right: max(12px, env(safe-area-inset-right, 0px)); bottom: max(12px, env(safe-area-inset-bottom, 0px)); z-index: 16; display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
-.pill .btn { box-shadow: 0 4px 14px rgba(0,0,0,.2); min-height: 34px; padding: 7px 12px; font-size: 13px; }
-body.docked .pill { display: none; }
+/* Page number, page turning and Flip figure: one floating bar over the bottom of the book */
+.booknav {
+  position: absolute; left: 50%; transform: translateX(-50%); bottom: max(22px, calc(env(safe-area-inset-bottom, 0px) + 10px)); z-index: 16;
+  display: flex; align-items: center; gap: 4px; padding: 4px; border-radius: 999px;
+  background: color-mix(in srgb, var(--panel) 94%, transparent); border: 1px solid var(--line);
+  box-shadow: 0 6px 20px rgba(0,0,0,.18); font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+.booknav .btn { min-height: 34px; border-radius: 999px; }
+.booknav .icon-btn { width: 34px; font-size: 18px; }
+.booknav .count { padding: 0 8px; font-size: 13px; color: var(--muted); }
+.booknav .flipslot { display: flex; gap: 4px; }
+.booknav .flipslot:empty { display: none; }
+.booknav .flipslot .btn { padding: 7px 13px; font-size: 13px; }
+body > .booknav { display: none; }                    /* until the book is on screen */
+body.phone .booknav .icon-btn { display: none; }      /* phones turn pages by tapping left or right */
+body.phone .booknav .count { padding: 0 12px; }
 .hint { position: fixed; left: 50%; transform: translateX(-50%); top: calc(env(safe-area-inset-top, 0px) + 70px); z-index: 16; width: min(340px, calc(100% - 32px)); background: var(--ink); color: var(--bar); border-radius: 10px; padding: 12px 12px 12px 16px; display: flex; gap: 12px; align-items: center; font-size: 13px; line-height: 1.4; box-shadow: 0 8px 24px rgba(0,0,0,.3); }
 .hint svg { width: 28px; height: 28px; flex: none; }
 .hint button { margin-left: auto; background: transparent; border: 1px solid rgba(255,255,255,.35); color: inherit; border-radius: 6px; padding: 6px 10px; font: 12px var(--f-ui); }
@@ -133,16 +142,10 @@ body.docked .pill { display: none; }
     <h1 id="title"></h1>
     <button class="btn ghost icon-btn" id="sideToggle" aria-label="Hide sidebar"></button>
   </div>
-  <div class="where">
-    <button class="btn icon-btn" id="prev" aria-label="Previous page">‹</button>
-    <span class="count" id="count"></span>
-    <button class="btn icon-btn" id="next" aria-label="Next page">›</button>
-  </div>
   <div class="actions" id="actions"></div>
   <h2 class="label">Contents</h2>
   <ol class="toc" id="toc"></ol>
   <div class="side-foot">
-    <p>Prefer your own PDF reader? Download the full thesis to search, rotate pages and annotate.</p>
     <a class="btn peach dl" href="thesis.pdf" download>
       <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M8 2v8M4.5 6.5 8 10l3.5-3.5M3 13h10"/></svg>
       Download PDF <small class="size"></small></a>
@@ -157,7 +160,13 @@ body.docked .pill { display: none; }
 <a class="btn peach float dl" id="fabDl" href="thesis.pdf" download>
   <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M8 2v8M4.5 6.5 8 10l3.5-3.5M3 13h10"/></svg>PDF</a>
 
-<div class="pill" id="pill" hidden></div>
+<!-- floats over the bottom of the book; moved into the stage when the book is built -->
+<div class="booknav" id="booknav">
+  <button class="btn ghost icon-btn" id="prev" aria-label="Previous page">‹</button>
+  <span class="count" id="count"></span>
+  <button class="btn ghost icon-btn" id="next" aria-label="Next page">›</button>
+  <span id="flipSlot" class="flipslot"></span>
+</div>
 <div class="hint" id="hint" hidden>
   <svg viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="9" y="3" width="10" height="17" rx="2"/><path d="M5 23a10 10 0 0 0 18 0M20 21l3 2 1-3"/></svg>
   <span>Turn your phone sideways to see two pages side by side.</span>
@@ -341,7 +350,7 @@ function goTo(p) { if (flip) { flip.turnToPage(p - 1); onFlip(flip.getCurrentPag
 // The admin preview can force phone mode, since a desktop mouse never counts as a touch screen.
 const isPhone = () => !!(DRAFT && DRAFT.phone) || (matchMedia('(pointer: coarse)').matches && Math.min(innerWidth, innerHeight) < 600);
 const isPortrait = () => innerHeight > innerWidth;
-function setChrome(on) { document.body.classList.toggle('chrome-off', !on); updatePill(); }
+function setChrome(on) { document.body.classList.toggle('chrome-off', !on); }
 function updateHint() { $('#hint').hidden = !(isPhone() && isPortrait() && ls.get(HINT_KEY) !== 'done'); }
 $('#hintClose').onclick = () => { ls.set(HINT_KEY, 'done'); updateHint(); };
 
@@ -424,18 +433,16 @@ function flipButtons(pages, cls) {
   return marked.map(p => `<button class="${cls}" data-flip="${p}">${ICON_ROT} Flip figure${pages.length > 1 ? ` p. ${p}` : ''}</button>`).join('');
 }
 let visiblePages = [1];
-// Sidebar actions: "Flip figure" for sideways figures on the open pages, and "Continue at p. X".
+// Sidebar action: "Continue at p. X" while you're still on the cover.
 function renderActions() {
   const resume = resumeAt && !visiblePages.includes(resumeAt) && currentPage <= 1
     ? `<button class="btn" data-resume>Continue at p. ${resumeAt}</button>` : '';
-  $('#actions').innerHTML = flipButtons(visiblePages, 'btn peach') + resume;
+  $('#actions').innerHTML = resume;
 }
 $('#actions').addEventListener('click', e => { if (e.target.closest('[data-resume]')) { goTo(resumeAt); resumeAt = 0; renderActions(); } });
-// Flip figure when the sidebar isn't on screen: a floating button at the bottom.
-function updatePill() {
-  const html = document.body.classList.contains('docked') ? '' : flipButtons(visiblePages, 'btn peach');
-  $('#pill').innerHTML = html; $('#pill').hidden = !html;
-}
+// The floating bar over the book: page number, page turning, and Flip figure when the open pages need it.
+const booknav = $('#booknav');
+function updateNav() { $('#flipSlot').innerHTML = flipButtons(visiblePages, 'btn peach'); }
 document.addEventListener('click', e => { const b = e.target.closest('[data-flip]'); if (b) { e.stopPropagation(); openReader(+b.dataset.flip, true); } }, true);
 
 // ---------- the flipbook ----------
@@ -458,7 +465,7 @@ function onFlip(i) {
   $('#prev').disabled = i === 0; $('#next').disabled = last >= numPages;
   setCurrent(last);
   renderActions();
-  updatePill();
+  updateNav();
 }
 function build(start) {
   cleanup.forEach(f => f()); cleanup = [];
@@ -468,6 +475,7 @@ function build(start) {
   const single = phone ? isPortrait() : stage.getBoundingClientRect().width < 640;
   const { w, h } = sizeFor(single);
   stage.innerHTML = `<div class="bookwrap"><div id="book"></div>${phone ? '<div class="tapzones"><button data-t="prev" aria-label="Previous page"></button><button data-t="menu" aria-label="Show or hide controls"></button><button data-t="next" aria-label="Next page"></button></div>' : ''}</div>`;
+  stage.appendChild(booknav);
   const pages = [];
   for (let n = 1; n <= numPages; n++) pages.push(makePage(n, w, h));
   flip = new St.PageFlip($('#book'), {
