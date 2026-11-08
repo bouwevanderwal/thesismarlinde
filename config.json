@@ -1,0 +1,30 @@
+{
+  "title": "Voorbeeldproefschrift",
+  "chapters": [
+    {
+      "title": "Abstract",
+      "page": 2
+    },
+    {
+      "title": "Chapter 1 \u2014 Introduction",
+      "page": 3
+    },
+    {
+      "title": "Chapter 2 \u2014 Methods",
+      "page": 11
+    },
+    {
+      "title": "Chapter 3 \u2014 Results",
+      "page": 19
+    },
+    {
+      "title": "Summary",
+      "page": 23
+    }
+  ],
+  "flip": [
+    9,
+    14,
+    17
+  ]
+}
