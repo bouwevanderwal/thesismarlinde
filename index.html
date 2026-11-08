@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
-<title>Thesis</title>
+<title>Marlinde Schoonbeek — PhD thesis</title>
 <style>
 /* Layout: a sidebar on the left (title, where you are, contents, download) and the book filling the
    rest at full height. Narrow screens and phones: the sidebar slides in from the Contents button in the bar.
@@ -171,6 +171,16 @@ body.phone .rscroll { touch-action: none; }   /* the viewer handles pinch and on
 .err { max-width: 50ch; text-align: center; color: var(--muted); }
 @media (prefers-reduced-motion: reduce) { .side { transition: none !important; } }
 </style>
+<meta name="description" content="Expanding the precision medicine landscape of paediatric solid tumours with ex vivo drug screening. PhD thesis, Utrecht University, 2026. Read it as a book online or download the PDF.">
+<meta property="og:type" content="book">
+<meta property="og:title" content="Marlinde Schoonbeek — PhD thesis">
+<meta property="og:description" content="Expanding the precision medicine landscape of paediatric solid tumours with ex vivo drug screening. PhD thesis, Utrecht University, 2026. Read it as a book online or download the PDF.">
+<meta property="og:url" content="https://marlindeschoonbeek.com/">
+<meta property="og:image" content="https://marlindeschoonbeek.com/og-image.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="canonical" href="https://marlindeschoonbeek.com/">
 </head>
 <body>
 <aside class="side" id="side" aria-label="Contents">
@@ -226,8 +236,8 @@ body.phone .rscroll { touch-action: none; }   /* the viewer handles pinch and on
 </div>
 <div class="toast" id="toast" hidden></div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/page-flip@2.0.7/dist/js/page-flip.browser.js"></script>
+<script src="lib/pdf.min.js"></script>
+<script src="lib/page-flip.browser.js"></script>
 <script>
 // DEMO is true only in the Claude preview, where downloads are blocked.
 const DEMO = /*DEMO*/false;
@@ -239,7 +249,9 @@ const POS_KEY = 'thesis-page', HINT_KEY = 'thesis-hint';
 // on ordinary 1× screens this is what makes small text crisp instead of fuzzy.
 const RES = Math.min(3, Math.max(2, window.devicePixelRatio || 1));
 const ICON_ROT = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M13 8a5 5 0 1 1-2-4"/><path d="M11 1v3h3"/></svg>';
-pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+// Security: every PDF is opened with isEvalSupported: false. This closes CVE-2024-4367 (code
+// execution through a crafted font) in this PDF.js version; it only costs a little speed on odd fonts.
+pdfjsLib.GlobalWorkerOptions.workerSrc = 'lib/pdf.worker.min.js';
 
 let doc, numPages = 0, aspect = 0.709, config = { title: '', chapters: [], flip: [] };
 let flip = null, cleanup = [], currentPage = 1;
@@ -306,13 +318,13 @@ async function loadBook() {
   }
   let url = new URL(config.pdf || 'thesis.pdf', location.href).href;
   if (draft && draft.blob) {
-    doc = await pdfjsLib.getDocument({ data: new Uint8Array(await draft.blob.arrayBuffer()) }).promise;
+    doc = await pdfjsLib.getDocument({ data: new Uint8Array(await draft.blob.arrayBuffer()), isEvalSupported: false }).promise;
     url = URL.createObjectURL(draft.blob); size = draft.blob.size;
   } else {
     // Range requests: only the pages you look at (plus the next few) are fetched, so a 40 MB thesis
     // opens as fast as a small one and a short visit costs a few MB instead of the whole file.
     spareData = isPhone() || !!(navigator.connection && navigator.connection.saveData);
-    try { doc = await pdfjsLib.getDocument({ url, disableAutoFetch: true, disableStream: true, rangeChunkSize: 524288 }).promise; }
+    try { doc = await pdfjsLib.getDocument({ url, disableAutoFetch: true, disableStream: true, rangeChunkSize: 524288, isEvalSupported: false }).promise; }
     catch (e) { throw new Error(`the file “${decodeURIComponent(url.split('/').pop())}” was not found next to this page. Check the "pdf" name in config.json`); }
     // File size for the download button, asked separately: never wait for the whole PDF to arrive.
     fetch(url, { method: 'HEAD' }).then(r => {
