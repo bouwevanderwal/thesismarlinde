@@ -116,6 +116,8 @@ body.phone .stage { padding: 8px; }
 .booknav .flipslot { display: flex; gap: 4px; }
 .booknav .flipslot:empty { display: none; }
 .booknav .flipslot .btn { padding: 7px 13px; font-size: 13px; }
+.booknav #fsBtn svg { width: 16px; height: 16px; }
+body.phone #fsBtn { display: none !important; }       /* iPhones don't allow full screen for web pages */
 body > .booknav { display: none; }                    /* until the book is on screen */
 body.phone .booknav .icon-btn { display: none; }      /* phones turn pages by tapping left or right */
 body.phone .booknav .count { padding: 0 12px; }
@@ -166,6 +168,7 @@ body.phone .booknav .count { padding: 0 12px; }
   <span class="count" id="count"></span>
   <button class="btn ghost icon-btn" id="next" aria-label="Next page">›</button>
   <span id="flipSlot" class="flipslot"></span>
+  <button class="btn ghost icon-btn" id="fsBtn" aria-label="Full screen" title="Full screen"></button>
 </div>
 <div class="hint" id="hint" hidden>
   <svg viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="9" y="3" width="10" height="17" rx="2"/><path d="M5 23a10 10 0 0 0 18 0M20 21l3 2 1-3"/></svg>
@@ -552,6 +555,27 @@ document.addEventListener('keydown', e => {
     else if (e.key === '+' || e.key === '=') readerZoom(1);
     else if (e.key === '-') readerZoom(-1);
   } else if (e.key === 'Escape') openSide(false);
+});
+
+// ---------- full screen: hides the browser's tabs and address bar, so the book gets more height ----------
+const ICON_FS = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M2 6V2h4M10 2h4v4M14 10v4h-4M6 14H2v-4"/></svg>';
+const ICON_FS_EXIT = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M6 2v4H2M14 6h-4V2M10 14v-4h4M2 10h4v4"/></svg>';
+function updateFsBtn() {
+  const on = !!document.fullscreenElement, b = $('#fsBtn');
+  b.innerHTML = on ? ICON_FS_EXIT : ICON_FS;
+  b.setAttribute('aria-label', on ? 'Leave full screen' : 'Full screen');
+  b.title = on ? 'Leave full screen (Esc)' : 'Full screen';
+}
+if (!document.fullscreenEnabled) $('#fsBtn').hidden = true;
+updateFsBtn();
+$('#fsBtn').onclick = () => {
+  if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+  else document.documentElement.requestFullscreen().catch(() => toast('Full screen is not available here.'));
+};
+// The window changes size: lay the book out again for the new space.
+document.addEventListener('fullscreenchange', () => {
+  updateFsBtn();
+  setTimeout(() => { lastW = innerWidth; lastH = innerHeight; applyMode(); build(currentPage); }, 150);
 });
 
 if (DEMO) {
