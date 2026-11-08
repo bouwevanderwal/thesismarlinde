@@ -14,7 +14,7 @@
   --ink: #1d2a31; --muted: #5a6970; --line: #c9d0d3;
   --teal: #3b7590; --teal-2: #5e98a3; --teal-ink: #ffffff; --teal-soft: #e3eff2;
   --peach: #f2af78; --peach-ink: #3d2410; --peach-line: #d98f52;
-  --overlay: rgba(20, 30, 36, .86);
+  --overlay: rgba(20, 30, 36, .86); --reader-bg: #1c262b;
   --f-title: Georgia, "Times New Roman", serif;
   --f-ui: Georgia, "Times New Roman", serif;
 }
@@ -62,7 +62,8 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
 /* stage + book */
 .stage { flex: 1 1 auto; min-height: 0; position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; padding-block: 16px; }
 .bookwrap { position: relative; }
-#book { position: relative; filter: drop-shadow(0 12px 24px rgba(0,0,0,.22)); }
+#book { position: relative; }   /* no CSS filter here: it makes the browser re-rasterise the pages and soften text */
+#book .page { box-shadow: 0 8px 22px rgba(0,0,0,.16); }
 .page { background: #fff; overflow: hidden; }
 .page canvas { display: block; width: 100%; height: 100%; }
 .page .ph { position: absolute; inset: 0; display: grid; place-items: center; color: #9aa4ab; font: 12px var(--f-ui); }
@@ -106,11 +107,17 @@ body.chrome-off .tools { transform: translateY(110%); }
 .hint svg { width: 28px; height: 28px; flex: none; }
 .hint button { margin-left: auto; background: transparent; border: 1px solid rgba(255,255,255,.35); color: inherit; border-radius: 6px; padding: 6px 10px; font: 500 12px var(--f-ui); }
 
-/* flip figure */
-.lightbox { position: fixed; inset: 0; z-index: 40; background: var(--overlay); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; padding: max(16px, env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) max(16px, env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px)); }
-.lightbox canvas { background: #fff; box-shadow: 0 10px 40px rgba(0,0,0,.4); max-width: 100%; }
-.lightbox .row { display: flex; gap: 10px; }
-.lightbox .btn { color: #fff; border-color: rgba(255,255,255,.4); }
+/* reader: one page large and scrollable (also used by Flip figure) */
+.reader { position: fixed; inset: 0; z-index: 40; background: var(--reader-bg); display: flex; flex-direction: column; }
+.rbar { flex: none; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding-block: 10px; padding-top: max(10px, env(safe-area-inset-top, 0px)); color: #fff; font-variant-numeric: tabular-nums; }
+.rbar .btn { color: #fff; border-color: rgba(255,255,255,.35); min-width: 38px; justify-content: center; }
+.rbar .lbl { min-width: 9ch; text-align: center; }
+.rbar .sp { flex: 1 1 auto; }
+.rscroll { flex: 1 1 auto; min-height: 0; overflow: auto; padding: 8px 16px max(24px, env(safe-area-inset-bottom, 0px)); -webkit-overflow-scrolling: touch; }
+.rscroll canvas { display: block; margin: 0 auto; background: #fff; box-shadow: 0 10px 40px rgba(0,0,0,.4); }
+.rscroll .loading { color: #c9d2d6; text-align: center; padding-top: 30vh; }
+#book .page { cursor: zoom-in; }
+body.immersive #book .page { cursor: default; }
 
 .toast { position: fixed; left: 50%; bottom: max(80px, env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--ink); color: var(--bar); padding: 10px 14px; border-radius: 8px; font-size: 13px; z-index: 50; max-width: calc(100% - 32px); }
 .err { max-width: 50ch; text-align: center; color: var(--muted); }
@@ -147,6 +154,8 @@ body.chrome-off .tools { transform: translateY(110%); }
   <button class="btn" id="prev" aria-label="Previous page">‹</button>
   <span class="count" id="count"></span>
   <button class="btn" id="next" aria-label="Next page">›</button>
+  <button class="btn" id="zoom" title="Read this page at full size">
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5 14 14M5 7h4M7 5v4"/></svg>Zoom</button>
   <span id="flipSlot" style="display:contents"></span>
 </footer>
 
@@ -162,12 +171,19 @@ body.chrome-off .tools { transform: translateY(110%); }
   <span>Turn your phone sideways to see two pages side by side.</span>
   <button id="hintClose">OK</button>
 </div>
-<div class="lightbox" id="lb" hidden>
-  <canvas id="lbCanvas"></canvas>
-  <div class="row">
-    <button class="btn" id="lbRotate">Rotate again</button>
-    <button class="btn" id="lbClose">Close</button>
+<div class="reader" id="reader" hidden role="dialog" aria-label="Page view">
+  <div class="rbar gutter">
+    <button class="btn" id="rPrev" aria-label="Previous page">‹</button>
+    <span class="lbl" id="rLabel"></span>
+    <button class="btn" id="rNext" aria-label="Next page">›</button>
+    <span class="sp"></span>
+    <button class="btn" id="rOut" aria-label="Zoom out">−</button>
+    <button class="btn" id="rIn" aria-label="Zoom in">+</button>
+    <button class="btn" id="rRot" aria-label="Rotate a quarter turn">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M13 8a5 5 0 1 1-2-4"/><path d="M11 1v3h3"/></svg></button>
+    <button class="btn" id="rClose">Close</button>
   </div>
+  <div class="rscroll" id="rScroll"><canvas id="rCanvas"></canvas></div>
 </div>
 <div class="toast" id="toast" hidden></div>
 
@@ -180,7 +196,9 @@ const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
 const stage = $('#stage');
 const POS_KEY = 'thesis-page', HINT_KEY = 'thesis-hint';
-const dpr = Math.min(window.devicePixelRatio || 1, 2);
+// Pages are drawn at 2× (3× on very sharp screens) and scaled down by the browser:
+// on ordinary 1× screens this is what makes small text crisp instead of fuzzy.
+const RES = Math.min(3, Math.max(2, window.devicePixelRatio || 1));
 const ICON_ROT = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M13 8a5 5 0 1 1-2-4"/><path d="M11 1v3h3"/></svg>';
 pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
@@ -194,6 +212,7 @@ const ls = {
 };
 // Set only when the admin tool shows this page as its preview (never on the public site).
 const DRAFT = window.__DRAFT || null;
+let spareData = false;   // phones and data-saver mode: fetch only what is looked at
 function toast(msg, ms = 3500) { const t = $('#toast'); t.textContent = msg; t.hidden = false; clearTimeout(t._h); t._h = setTimeout(() => t.hidden = true, ms); }
 const fmtSize = b => b >= 1048576 ? `${Math.round(b / 1048576)} MB` : `${Math.max(1, Math.round(b / 1024))} KB`;
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -204,7 +223,7 @@ const pageCache = new Map();
 function getPage(n) { if (!pageCache.has(n)) pageCache.set(n, doc.getPage(n)); return pageCache.get(n); }
 // Draws page n into a canvas fitting w×h CSS px. In the book a landscape page is turned to fill its
 // portrait slot, as in print. extraRot adds a manual turn (90 = a quarter turn to the right).
-async function renderInto(canvas, n, w, h, { extraRot = 0, fitRotate = true } = {}) {
+async function renderInto(canvas, n, w, h, { extraRot = 0, fitRotate = true, onTask = null } = {}) {
   const page = await getPage(n);
   const base = page.getViewport({ scale: 1 });
   let rot = page.rotate;
@@ -212,10 +231,11 @@ async function renderInto(canvas, n, w, h, { extraRot = 0, fitRotate = true } = 
   rot = (rot + extraRot) % 360;
   const v1 = page.getViewport({ scale: 1, rotation: rot });
   const scale = Math.min(w / v1.width, h / v1.height);
-  const vp = page.getViewport({ scale: scale * dpr, rotation: rot });
+  const vp = page.getViewport({ scale: scale * RES, rotation: rot });
   canvas.width = Math.floor(vp.width); canvas.height = Math.floor(vp.height);
-  canvas.style.width = Math.floor(vp.width / dpr) + 'px'; canvas.style.height = Math.floor(vp.height / dpr) + 'px';
-  await page.render({ canvasContext: canvas.getContext('2d'), viewport: vp }).promise;
+  const task = page.render({ canvasContext: canvas.getContext('2d'), viewport: vp });
+  if (onTask) onTask(task);
+  await task.promise;
 }
 // Fallback when config.json is missing: chapters from the PDF's own bookmarks.
 async function readOutline(d) {
@@ -234,27 +254,37 @@ async function readOutline(d) {
 // ---------- load: thesis.pdf + config.json next to this page, or the admin's draft ----------
 async function loadBook() {
   const draft = DRAFT;
-  let url = 'thesis.pdf', size = 0;
+  let size = 0, chaptersFromPdf = false;
+  // config.json says which PDF to show ("pdf"), so the file can keep its own name.
+  if (draft) config = draft.config;
+  else {
+    try { const r = await fetch('config.json', { cache: 'no-cache' }); if (!r.ok) throw 0; config = await r.json(); }
+    catch { config = { title: 'Thesis', chapters: [], flip: [] }; chaptersFromPdf = true; }
+  }
+  let url = new URL(config.pdf || 'thesis.pdf', location.href).href;
   if (draft && draft.blob) {
     doc = await pdfjsLib.getDocument({ data: new Uint8Array(await draft.blob.arrayBuffer()) }).promise;
     url = URL.createObjectURL(draft.blob); size = draft.blob.size;
   } else {
-    // disableAutoFetch + range requests: only the pages being looked at are downloaded,
-    // so a 40 MB thesis opens as fast as a small one.
-    doc = await pdfjsLib.getDocument({ url: 'thesis.pdf', disableAutoFetch: true, disableStream: true, rangeChunkSize: 262144 }).promise;
-    try { size = (await doc.getDownloadInfo()).length; } catch {}
+    // Range requests: the pages you look at are fetched first, so a 40 MB thesis opens as fast as a
+    // small one. On computers the rest then downloads in the background, so jumping to a chapter is
+    // instant once it's in. Phones (and data-saver mode) only fetch what is looked at, to spare data.
+    spareData = isPhone() || !!(navigator.connection && navigator.connection.saveData);
+    try { doc = await pdfjsLib.getDocument({ url, disableAutoFetch: spareData, disableStream: true, rangeChunkSize: 524288 }).promise; }
+    catch (e) { throw new Error(`the file “${decodeURIComponent(url.split('/').pop())}” was not found next to this page. Check the "pdf" name in config.json`); }
+    // File size for the download button, asked separately: never wait for the whole PDF to arrive.
+    fetch(url, { method: 'HEAD' }).then(r => {
+      const len = +r.headers.get('content-length');
+      if (len) $$('.dl .size').forEach(s => s.textContent = fmtSize(len));
+    }).catch(() => {});
   }
-  if (draft) config = draft.config;
-  else {
-    try { const r = await fetch('config.json', { cache: 'no-cache' }); if (!r.ok) throw 0; config = await r.json(); }
-    catch { config = { title: 'Thesis', chapters: await readOutline(doc), flip: [] }; }
-  }
+  if (chaptersFromPdf) config.chapters = await readOutline(doc);
   config.flip = config.flip || []; config.chapters = config.chapters || [];
   numPages = doc.numPages;
   aspect = (await getPage(1)).getViewport({ scale: 1 }).width / (await getPage(1)).getViewport({ scale: 1 }).height;
   $('#title').textContent = config.title || 'Thesis';
   document.title = config.title || 'Thesis';
-  $$('.dl').forEach(a => { a.href = url; a.download = fileName(config.title); a.querySelector('.size').textContent = size ? fmtSize(size) : ''; });
+  $$('.dl').forEach(a => { a.href = url; a.download = fileName(config.title); if (size) a.querySelector('.size').textContent = fmtSize(size); });
   renderToc();
 }
 
@@ -298,11 +328,69 @@ function makePage(n, w, h) {
   el.dataset.n = n;
   return el;
 }
-function ensureRendered(el, w, h) {
-  if (el.dataset.done) return;
-  el.dataset.done = '1';
-  const c = document.createElement('canvas');
-  renderInto(c, +el.dataset.n, w, h).then(() => { el.querySelector('.ph')?.remove(); el.prepend(c); c.style.width = '100%'; c.style.height = '100%'; });
+// ---------- render queue: the pages you look at first, then the ones you'll look at next ----------
+// At most two pages are drawn at once, so the visible ones don't share the connection and the
+// processor with pages you can't see. Pages far away are cleared again to keep memory in check.
+const PARALLEL = 2, KEEP = 8;
+let queue = [], busy = 0;
+function schedule(order) {
+  queue = order.filter(n => n >= 1 && n <= numPages);
+  // The reader goes first: stop drawing ahead, unless it is drawing one of the pages wanted now.
+  if (warmTask && !queue.slice(0, 2).includes(warmPage)) { warmTask.cancel(); warmTask = null; }
+  pump();
+}
+function pump() {
+  while (busy < PARALLEL && queue.length) {
+    const n = queue.shift(), book = flip, el = book && book._pages[n - 1];
+    if (!el || el.dataset.state) continue;
+    el.dataset.state = 'busy'; busy++;
+    const c = document.createElement('canvas');
+    renderInto(c, n, book._w, book._h)
+      .then(() => {
+        if (el.dataset.state !== 'busy') { c.width = c.height = 0; return; }   // cleared while drawing
+        el.querySelector('.ph')?.remove(); c.style.width = c.style.height = '100%';
+        el.prepend(c); el.dataset.state = 'done';
+      })
+      .catch(() => { delete el.dataset.state; })
+      .finally(() => { busy--; pump(); });
+  }
+}
+function clearFar(center) {
+  flip._pages.forEach((el, k) => {
+    const n = k + 1;
+    if (Math.abs(n - center) <= KEEP || !el.dataset.state || CHAPTER_PAGES.has(n)) return;
+    const c = el.querySelector('canvas'); if (c) { c.width = c.height = 0; c.remove(); }
+    if (!el.querySelector('.ph')) el.insertAdjacentHTML('afterbegin', `<div class="ph">p. ${n}</div>`);
+    delete el.dataset.state;
+    getPage(n).then(p => p.cleanup()).catch(() => {});
+  });
+}
+
+// ---------- chapter openings drawn ahead ----------
+// Chapter openings carry full-page artwork that takes 0.5–2 s to unpack the first time.
+// On computers, while the reader is idle, those spreads are drawn into the book in advance and
+// kept, so jumping from the contents is instant. Phones skip this to spare data and memory.
+let CHAPTER_PAGES = new Set(), warmTask = null, warmPage = 0, warmRun = 0;
+const spreadOf = p => p <= 1 ? [1] : p % 2 === 0 ? [p, p + 1] : [p - 1, p];
+async function warmChapters() {
+  if (spareData || !flip) return;
+  const run = ++warmRun, book = flip;
+  CHAPTER_PAGES = new Set(config.chapters.flatMap(ch => spreadOf(ch.page)).filter(n => n <= numPages));
+  const todo = [...CHAPTER_PAGES];
+  while (todo.length) {
+    while (busy || queue.length) await new Promise(r => setTimeout(r, 300));   // the reader always goes first
+    if (run !== warmRun || book !== flip) return;                               // book was rebuilt
+    const n = todo[0], el = book._pages[n - 1];
+    if (!el || el.dataset.state) { todo.shift(); continue; }
+    el.dataset.state = 'busy'; warmPage = n;
+    const c = document.createElement('canvas');
+    try {
+      await renderInto(c, n, book._w, book._h, { onTask: t => warmTask = t });
+      el.querySelector('.ph')?.remove(); c.style.width = c.style.height = '100%';
+      el.prepend(c); el.dataset.state = 'done'; todo.shift();
+    } catch { delete el.dataset.state; c.width = c.height = 0; }   // interrupted: retry later
+    warmTask = null; warmPage = 0;
+  }
 }
 function flipButtons(pages, cls) {
   const marked = pages.filter(p => config.flip.includes(p));
@@ -313,7 +401,7 @@ function updatePill() {
   const html = document.body.classList.contains('chrome-off') ? flipButtons(visiblePages, 'btn peach') : '';
   $('#pill').innerHTML = html; $('#pill').hidden = !html;
 }
-document.addEventListener('click', e => { const b = e.target.closest('[data-flip]'); if (b) { e.stopPropagation(); openFlip(+b.dataset.flip); } }, true);
+document.addEventListener('click', e => { const b = e.target.closest('[data-flip]'); if (b) { e.stopPropagation(); openReader(+b.dataset.flip, true); } }, true);
 
 // ---------- the flipbook ----------
 function sizeFor(single) {
@@ -327,9 +415,10 @@ function onFlip(i) {
   let vis;
   if (flip._single || i === 0) vis = [i];
   else { const left = i % 2 === 1 ? i : i - 1; vis = [left, left + 1].filter(k => k < numPages); }   // spreads are (2,3), (4,5)…
-  for (let k = i - 2; k <= i + 5; k++) if (flip._pages[k]) ensureRendered(flip._pages[k], flip._w, flip._h);
   visiblePages = vis.map(k => k + 1);
-  const last = visiblePages[visiblePages.length - 1];
+  const first = visiblePages[0], last = visiblePages[visiblePages.length - 1];
+  schedule([...visiblePages, last + 1, last + 2, first - 1, first - 2, last + 3, last + 4]);
+  clearFar(last);
   const ch = chapterAt(last);
   $('#count').innerHTML = `${ch ? `<b>${esc(ch.title)}</b>` : ''}${i === 0 ? 'Cover' : visiblePages.length > 1 ? `p. ${visiblePages[0]}–${visiblePages[1]} of ${numPages}` : `p. ${last} of ${numPages}`}`;
   $('#flipSlot').innerHTML = flipButtons(visiblePages, 'btn peach');
@@ -349,7 +438,8 @@ function build(start) {
   for (let n = 1; n <= numPages; n++) pages.push(makePage(n, w, h));
   flip = new St.PageFlip($('#book'), {
     width: w, height: h, size: 'fixed', showCover: true, usePortrait: single,
-    maxShadowOpacity: .45, mobileScrollSupport: false, flippingTime: 650, useMouseEvents: !phone
+    maxShadowOpacity: .45, mobileScrollSupport: false, flippingTime: 650, useMouseEvents: !phone,
+    disableFlipByClick: true   // a click opens the page large; drag a corner, the arrows or the keys to turn
   });
   flip.loadFromHTML(pages);
   Object.assign(flip, { _pages: pages, _w: w, _h: h, _single: single });
@@ -365,27 +455,77 @@ function build(start) {
     else if (t === 'next') { flip.flipNext(); setChrome(false); }
     else setChrome(document.body.classList.contains('chrome-off'));
   };
-  const key = e => { if (!$('#lb').hidden || $('#drawer').classList.contains('open')) return; if (e.key === 'ArrowRight') flip.flipNext(); if (e.key === 'ArrowLeft') flip.flipPrev(); };
+  // Desktop: a plain click on a page opens it large. A drag that turned the page is not a click.
+  let turnedAt = 0;
+  flip.on('changeState', e => { if (e.data === 'flipping' || e.data === 'user_fold') turnedAt = Date.now(); });
+  if (!phone) $('#book').addEventListener('click', e => {
+    const el = e.target.closest('.page');
+    if (!el || flip.getState() !== 'read' || Date.now() - turnedAt < 400) return;
+    openReader(+el.dataset.n);
+  });
+  const key = e => { if (!$('#reader').hidden || $('#drawer').classList.contains('open')) return; if (e.key === 'ArrowRight') flip.flipNext(); if (e.key === 'ArrowLeft') flip.flipPrev(); };
   document.addEventListener('keydown', key);
   cleanup.push(() => document.removeEventListener('keydown', key));
   updateHint();
   // Phones: show the controls briefly so people know they exist, then give the page the full screen.
   clearTimeout(build._t);
   if (phone) build._t = setTimeout(() => { if (!$('#drawer').classList.contains('open')) setChrome(false); }, 2500);
+  clearTimeout(build._w); build._w = setTimeout(warmChapters, 1500);   // after the first view is on screen
 }
 
-// ---------- flip figure: the page large, a quarter turn to the right ----------
-let lb = { n: 1, rot: 0 };
-async function drawLightbox() {
-  const v = (await getPage(lb.n)).getViewport({ scale: 1 });
-  const extra = (v.width > v.height ? 0 : 90) + lb.rot;   // a landscape page is already upright on its own
-  await renderInto($('#lbCanvas'), lb.n, innerWidth - 40, innerHeight - 110, { extraRot: extra, fitRotate: false });
+// ---------- page view: one page large and scrollable; "Flip figure" opens it a quarter turn right ----------
+const ZOOMS = [1, 1.5, 2, 3];
+let R = { n: 1, rot: 0, z: 0, task: null, gen: 0 };
+async function drawReader() {
+  const gen = ++R.gen, scroll = $('#rScroll');
+  $('#rLabel').textContent = `p. ${R.n} of ${numPages}`;
+  $('#rPrev').disabled = R.n <= 1; $('#rNext').disabled = R.n >= numPages;
+  $('#rOut').disabled = R.z === 0; $('#rIn').disabled = R.z === ZOOMS.length - 1;
+  const page = await getPage(R.n);
+  if (gen !== R.gen) return;
+  const rot = (page.rotate + R.rot) % 360;
+  const v1 = page.getViewport({ scale: 1, rotation: rot });
+  const cssW = Math.min(scroll.clientWidth - 32, 1100) * ZOOMS[R.z];
+  const cssH = cssW * v1.height / v1.width;
+  const res = Math.min(RES, Math.sqrt(16e6 / (cssW * cssH)));   // keep the canvas under ~16 megapixels
+  const vp = page.getViewport({ scale: cssW / v1.width * res, rotation: rot });
+  const c = document.createElement('canvas');
+  c.width = Math.floor(vp.width); c.height = Math.floor(vp.height);
+  c.style.width = Math.floor(cssW) + 'px'; c.style.height = Math.floor(cssH) + 'px';
+  if (R.task) R.task.cancel();
+  R.task = page.render({ canvasContext: c.getContext('2d'), viewport: vp });
+  try { await R.task.promise; } catch { return; }   // cancelled by a newer request
+  if (gen !== R.gen) return;
+  const old = $('#rCanvas'); c.id = 'rCanvas'; old.replaceWith(c); old.width = old.height = 0;
 }
-function openFlip(n) { lb = { n, rot: 0 }; $('#lb').hidden = false; drawLightbox(); }
-$('#lbRotate').onclick = () => { lb.rot = (lb.rot + 90) % 360; drawLightbox(); };
-$('#lbClose').onclick = () => { $('#lb').hidden = true; };
-$('#lb').onclick = e => { if (e.target.id === 'lb') $('#lb').hidden = true; };
-document.addEventListener('keydown', e => { if (e.key === 'Escape') { $('#lb').hidden = true; openDrawer(false); } });
+function openReader(n, figure = false) {
+  getPage(n).then(p => {
+    const v = p.getViewport({ scale: 1 });
+    // Flip figure: turn a portrait page a quarter to the right; a landscape page is already upright here.
+    R.n = n; R.z = 0; R.rot = figure && v.height > v.width ? 90 : 0;
+    $('#reader').hidden = false; $('#rScroll').scrollTo(0, 0);
+    drawReader();
+  });
+}
+function readerPage(d) { const n = R.n + d; if (n < 1 || n > numPages) return; R.n = n; R.rot = 0; $('#rScroll').scrollTo(0, 0); drawReader(); }
+function readerZoom(d) { const z = Math.max(0, Math.min(ZOOMS.length - 1, R.z + d)); if (z !== R.z) { R.z = z; drawReader(); } }
+function closeReader() { $('#reader').hidden = true; if (R.task) R.task.cancel(); R.gen++; }
+$('#rPrev').onclick = () => readerPage(-1);
+$('#rNext').onclick = () => readerPage(1);
+$('#rIn').onclick = () => readerZoom(1);
+$('#rOut').onclick = () => readerZoom(-1);
+$('#rRot').onclick = () => { R.rot = (R.rot + 90) % 360; drawReader(); };
+$('#rClose').onclick = closeReader;
+$('#zoom').onclick = () => openReader(visiblePages[0]);
+document.addEventListener('keydown', e => {
+  if (!$('#reader').hidden) {
+    if (e.key === 'Escape') closeReader();
+    else if (e.key === 'ArrowLeft') readerPage(-1);
+    else if (e.key === 'ArrowRight') readerPage(1);
+    else if (e.key === '+' || e.key === '=') readerZoom(1);
+    else if (e.key === '-') readerZoom(-1);
+  } else if (e.key === 'Escape') openDrawer(false);
+});
 
 if (DEMO) {
   $$('.dl').forEach(a => a.addEventListener('click', () => toast('Downloads are blocked in this preview. On the real site this saves the PDF.')));}
