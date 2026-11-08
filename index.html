@@ -29,6 +29,9 @@
   --peach: #f2af78; --peach-ink: #3d2410; --peach-line: #f2af78; color-scheme: dark }
 
 html, body { height: 100%; }
+/* iPhone Safari counts 100% as if its address bar weren't there, so the bottom of the site (with the
+   bar) slid underneath it. dvh is the height that is actually visible, and follows the address bar. */
+@supports (height: 100dvh) { html, body { height: 100dvh; } }
 html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }   /* iPhone: don't enlarge text in landscape */
 body {
   background: radial-gradient(ellipse at 50% 40%, var(--desk) 0%, var(--desk-shade) 100%) fixed, var(--desk);
@@ -118,6 +121,10 @@ body.phone .stage { padding: 8px; }
 #book .page.r::after { left: 0; background: linear-gradient(to right, rgba(0,0,0,.12), transparent); }
 /* Phones: the viewer handles all touches on the book itself (tap to turn, swipe, pinch to zoom the
    book only), so the browser must not zoom or scroll the whole page there. */
+/* Phones: Safari must never zoom the whole web page (also not when a pinch starts on the bar or the
+   empty space); only the Contents panel may scroll, vertically. */
+html.phone, body.phone, body.phone .booknav { touch-action: none; }
+body.phone .side, body.phone .toc { touch-action: pan-y; }
 body.phone .stage { touch-action: none; -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; }
 
 /* Page number, page turning and Flip figure: one floating bar over the bottom of the book */
@@ -365,6 +372,7 @@ function applyMode() {
   const docked = wideEnough() && ls.get(COLLAPSE_KEY) !== '1';
   document.body.classList.toggle('docked', docked);
   document.body.classList.toggle('phone', isPhone());
+  document.documentElement.classList.toggle('phone', isPhone());
   openSide(false);
   const t = $('#sideToggle');
   if (docked) { t.innerHTML = ICON_HIDE; t.setAttribute('aria-label', 'Hide sidebar'); t.title = 'Hide sidebar'; }
@@ -635,6 +643,15 @@ stage.addEventListener('pointerup', endTouch);
 stage.addEventListener('pointercancel', endTouch);
 // iPhone Safari has its own pinch gesture events; stop them from zooming the whole page.
 ['gesturestart', 'gesturechange'].forEach(t => document.addEventListener(t, e => e.preventDefault(), { passive: false }));
+// Safety net: if the whole page did end up zoomed (Safari zoom, not the book), put it back to normal.
+// Briefly limiting the zoom in the viewport setting makes Safari snap back to 100%.
+if (window.visualViewport) visualViewport.addEventListener('resize', () => {
+  if (!isPhone() || visualViewport.scale < 1.02) return;
+  const meta = document.querySelector('meta[name="viewport"]'); if (!meta) return;
+  const orig = meta.content;
+  meta.content = orig + ', maximum-scale=1';
+  setTimeout(() => { meta.content = orig; }, 400);
+});
 
 // ---------- the flipbook ----------
 function onFlip(i) {
