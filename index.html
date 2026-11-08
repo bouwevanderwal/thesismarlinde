@@ -89,8 +89,14 @@ body.docked #opener, body.docked #fabDl, body:not(.phone) #fabDl { display: none
 body.chrome-off .float { transform: translateY(-160%); opacity: 0; }
 
 /* ---------- stage + book ---------- */
-.stage { flex: 1 1 auto; min-width: 0; height: 100%; box-sizing: border-box; position: relative; display: flex; align-items: center; justify-content: center; padding: 16px max(16px, env(safe-area-inset-right, 0px)) 16px 16px; }
+/* The outer area holds the floating bar; the inner stage holds the book and scrolls when zoomed in. */
+.stage-outer { flex: 1 1 auto; min-width: 0; height: 100%; position: relative; }
+.stage { position: absolute; inset: 0; z-index: 0; /* own layer: the flipbook's page layers stay below the bar */ box-sizing: border-box; display: flex; align-items: center; justify-content: center; padding: 16px max(16px, env(safe-area-inset-right, 0px)) 16px 16px; }
 body.phone .stage { padding: 8px; }
+/* Zoomed in: the book can be larger than the screen. Scroll (wheel, trackpad, scrollbars) or drag it. */
+.stage.zoomed { display: block; overflow: auto; padding-bottom: 80px; cursor: grab; }
+.stage.zoomed.dragging { cursor: grabbing; user-select: none; }
+.stage.zoomed .bookwrap { margin: 0 auto; width: max-content; }
 .bookwrap { position: relative; }
 #book { position: relative; }   /* no CSS filter here: it makes the browser re-rasterise the pages and soften text */
 #book .page { box-shadow: 0 8px 22px rgba(0,0,0,.16); }
@@ -107,7 +113,7 @@ body.phone .stage { padding: 8px; }
 .booknav {
   position: absolute; left: 50%; transform: translateX(-50%); bottom: max(22px, calc(env(safe-area-inset-bottom, 0px) + 10px)); z-index: 16;
   display: flex; align-items: center; gap: 4px; padding: 4px; border-radius: 999px;
-  background: color-mix(in srgb, var(--panel) 94%, transparent); border: 1px solid var(--line);
+  background: var(--panel); border: 1px solid var(--line);
   box-shadow: 0 6px 20px rgba(0,0,0,.18); font-variant-numeric: tabular-nums; white-space: nowrap;
 }
 .booknav .btn { min-height: 34px; border-radius: 999px; }
@@ -118,7 +124,11 @@ body.phone .stage { padding: 8px; }
 .booknav .flipslot .btn { padding: 7px 13px; font-size: 13px; }
 .booknav #fsBtn svg { width: 16px; height: 16px; }
 body.phone #fsBtn { display: none !important; }       /* iPhones don't allow full screen for web pages */
-body > .booknav { display: none; }                    /* until the book is on screen */
+.booknav .zoomgrp { display: flex; align-items: center; gap: 2px; margin: 0 2px; padding: 0 4px; border-left: 1px solid var(--line); border-right: 1px solid var(--line); }
+.booknav .zoomgrp .icon-btn { font-size: 18px; }
+.booknav .pct { min-width: 54px; padding: 0 6px; font-size: 13px; color: var(--ink); }
+.booknav .pct:disabled { opacity: 1; color: var(--muted); cursor: default; }
+body.phone .booknav .zoomgrp { display: none; }      /* phones zoom by pinching */
 body.phone .booknav .icon-btn { display: none; }      /* phones turn pages by tapping left or right */
 body.phone .booknav .count { padding: 0 12px; }
 .hint { position: fixed; left: 50%; transform: translateX(-50%); top: calc(env(safe-area-inset-top, 0px) + 70px); z-index: 16; width: min(340px, calc(100% - 32px)); background: var(--ink); color: var(--bar); border-radius: 10px; padding: 12px 12px 12px 16px; display: flex; gap: 12px; align-items: center; font-size: 13px; line-height: 1.4; box-shadow: 0 8px 24px rgba(0,0,0,.3); }
@@ -155,21 +165,28 @@ body.phone .booknav .count { padding: 0 12px; }
 </aside>
 <div class="scrim" id="scrim" hidden></div>
 
-<main class="stage" id="stage"><p class="err">Loading the book…</p></main>
+<main class="stage-outer" id="stageOuter">
+  <div class="stage" id="stage"><p class="err">Loading the book…</p></div>
+  <!-- floats over the bottom of the book -->
+  <div class="booknav" id="booknav" hidden>
+    <button class="btn ghost icon-btn" id="prev" aria-label="Previous page">‹</button>
+    <span class="count" id="count"></span>
+    <button class="btn ghost icon-btn" id="next" aria-label="Next page">›</button>
+    <span class="zoomgrp">
+      <button class="btn ghost icon-btn" id="zoomOut" aria-label="Zoom out">−</button>
+      <button class="btn ghost pct" id="zoomPct" title="Back to fit the screen"></button>
+      <button class="btn ghost icon-btn" id="zoomIn" aria-label="Zoom in">+</button>
+    </span>
+    <span id="flipSlot" class="flipslot"></span>
+    <button class="btn ghost icon-btn" id="fsBtn" aria-label="Full screen" title="Full screen"></button>
+  </div>
+</main>
 
 <button class="btn teal float" id="opener" aria-controls="side">
   <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M2 4h12M2 8h12M2 12h8"/></svg>Contents</button>
 <a class="btn peach float dl" id="fabDl" href="thesis.pdf" download>
   <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M8 2v8M4.5 6.5 8 10l3.5-3.5M3 13h10"/></svg>PDF</a>
 
-<!-- floats over the bottom of the book; moved into the stage when the book is built -->
-<div class="booknav" id="booknav">
-  <button class="btn ghost icon-btn" id="prev" aria-label="Previous page">‹</button>
-  <span class="count" id="count"></span>
-  <button class="btn ghost icon-btn" id="next" aria-label="Next page">›</button>
-  <span id="flipSlot" class="flipslot"></span>
-  <button class="btn ghost icon-btn" id="fsBtn" aria-label="Full screen" title="Full screen"></button>
-</div>
 <div class="hint" id="hint" hidden>
   <svg viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="9" y="3" width="10" height="17" rx="2"/><path d="M5 23a10 10 0 0 0 18 0M20 21l3 2 1-3"/></svg>
   <span>Turn your phone sideways to see two pages side by side.</span>
@@ -232,7 +249,9 @@ async function renderInto(canvas, n, w, h, { extraRot = 0, fitRotate = true, onT
   rot = (rot + extraRot) % 360;
   const v1 = page.getViewport({ scale: 1, rotation: rot });
   const scale = Math.min(w / v1.width, h / v1.height);
-  const vp = page.getViewport({ scale: scale * RES, rotation: rot });
+  // Zoomed-in pages are big: keep each drawing under ~6 megapixels so memory stays reasonable.
+  const res = Math.min(RES, Math.sqrt(6e6 / Math.max(1, w * h)));
+  const vp = page.getViewport({ scale: scale * res, rotation: rot });
   canvas.width = Math.floor(vp.width); canvas.height = Math.floor(vp.height);
   const task = page.render({ canvasContext: canvas.getContext('2d'), viewport: vp });
   if (onTask) onTask(task);
@@ -282,7 +301,9 @@ async function loadBook() {
   if (chaptersFromPdf) config.chapters = await readOutline(doc);
   config.flip = config.flip || []; config.chapters = config.chapters || [];
   numPages = doc.numPages;
-  aspect = (await getPage(1)).getViewport({ scale: 1 }).width / (await getPage(1)).getViewport({ scale: 1 }).height;
+  const v1 = (await getPage(1)).getViewport({ scale: 1 });
+  aspect = v1.width / v1.height;
+  printW = v1.width * 96 / 72;   // 100% = printed size
   $('#title').textContent = config.title || 'Thesis';
   document.title = config.title || 'Thesis';
   $$('.dl').forEach(a => { a.href = url; a.download = fileName(config.title); if (size) a.querySelector('.size').textContent = fmtSize(size); });
@@ -397,7 +418,7 @@ function pump() {
 function clearFar(center) {
   flip._pages.forEach((el, k) => {
     const n = k + 1;
-    if (Math.abs(n - center) <= KEEP || !el.dataset.state || CHAPTER_PAGES.has(n)) return;
+    if (Math.abs(n - center) <= (zoom ? 4 : KEEP) || !el.dataset.state || CHAPTER_PAGES.has(n)) return;
     const c = el.querySelector('canvas'); if (c) { c.width = c.height = 0; c.remove(); }
     if (!el.querySelector('.ph')) el.insertAdjacentHTML('afterbegin', `<div class="ph">p. ${n}</div>`);
     delete el.dataset.state;
@@ -448,14 +469,85 @@ const booknav = $('#booknav');
 function updateNav() { $('#flipSlot').innerHTML = flipButtons(visiblePages, 'btn peach'); }
 document.addEventListener('click', e => { const b = e.target.closest('[data-flip]'); if (b) { e.stopPropagation(); openReader(+b.dataset.flip, true); } }, true);
 
-// ---------- the flipbook ----------
-function sizeFor(single) {
+// ---------- zoom: 100% is the printed size of the book ----------
+// "Fit" shows the whole spread on screen (e.g. 94% on a laptop). Zooming in makes the book larger
+// than the screen; then you scroll or drag to look around, and a short click still turns the page.
+const ZOOM_STEPS = [1, 1.25, 1.5, 2];
+let zoom = null;     // null = fit the screen
+let printW = 0;      // page width at 100% in CSS pixels (PDF points × 96/72)
+function fitSize(single) {
   const r = stage.getBoundingClientRect();
   const pad = isPhone() ? 16 : 32;
   const per = single ? r.width - pad : (r.width - pad) / 2;
   const w = Math.max(140, Math.floor(Math.min(per, (r.height - pad) * aspect)));
   return { w, h: Math.floor(w / aspect) };
 }
+function sizeFor(single) {
+  if (!zoom) return fitSize(single);
+  const w = Math.round(printW * zoom);
+  return { w, h: Math.round(w / aspect) };
+}
+const fitPct = () => fitSize(flip ? flip._single : false).w / printW;
+function setZoom(z) {
+  if (isPhone()) z = null;
+  if (z !== null && z <= fitPct() + 0.005) z = null;        // smaller than fitting: just fit
+  if (z === zoom) return;
+  // Keep the same spot in the middle of the screen while zooming.
+  const keep = zoom ? { rx: (stage.scrollLeft + stage.clientWidth / 2) / stage.scrollWidth,
+                        ry: (stage.scrollTop + stage.clientHeight / 2) / stage.scrollHeight } : { rx: .5, ry: .3 };
+  zoom = z;
+  build(currentPage, keep);
+}
+function zoomStep(dir) {
+  const cur = zoom || fitPct();
+  if (dir > 0) { const next = ZOOM_STEPS.find(s => s > cur + 0.01); if (next) setZoom(next); }
+  else { const lower = ZOOM_STEPS.filter(s => s < cur - 0.01); setZoom(lower.length ? lower[lower.length - 1] : null); }
+}
+function updateZoomUi() {
+  const cur = zoom || fitPct();
+  $('#zoomPct').textContent = Math.round(cur * 100) + '%';
+  $('#zoomPct').disabled = !zoom;
+  $('#zoomPct').title = zoom ? 'Back to fit the screen' : 'Fits the screen. 100% is the printed size.';
+  $('#zoomOut').disabled = !zoom;
+  $('#zoomIn').disabled = !ZOOM_STEPS.some(s => s > cur + 0.01);
+}
+$('#zoomIn').onclick = () => zoomStep(1);
+$('#zoomOut').onclick = () => zoomStep(-1);
+$('#zoomPct').onclick = () => setZoom(null);
+// Ctrl + scroll wheel, or pinching on a trackpad, zooms the book instead of the whole web page.
+stage.addEventListener('wheel', e => {
+  if (!e.ctrlKey || isPhone()) return;
+  e.preventDefault();
+  if (Date.now() - (stage._wheelAt || 0) < 250) return;
+  stage._wheelAt = Date.now();
+  zoomStep(e.deltaY < 0 ? 1 : -1);
+}, { passive: false });
+// Zoomed in: drag to look around; a short click (no movement) turns the page, left half back, right half on.
+let drag = null;
+stage.addEventListener('pointerdown', e => {
+  if (!zoom || e.button !== 0 || e.pointerType === 'touch') return;
+  const r = stage.getBoundingClientRect();
+  if (e.clientX - r.left > stage.clientWidth || e.clientY - r.top > stage.clientHeight) return;   // on a scrollbar
+  drag = { id: e.pointerId, x: e.clientX, y: e.clientY, sl: stage.scrollLeft, st: stage.scrollTop, moved: false };
+});
+stage.addEventListener('pointermove', e => {
+  if (!drag || e.pointerId !== drag.id) return;
+  const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+  if (!drag.moved && Math.hypot(dx, dy) > 5) { drag.moved = true; stage.classList.add('dragging'); stage.setPointerCapture(e.pointerId); }
+  if (drag.moved) { stage.scrollLeft = drag.sl - dx; stage.scrollTop = drag.st - dy; }
+});
+function endDrag(e) {
+  if (!drag || e.pointerId !== drag.id) return;
+  const d = drag; drag = null; stage.classList.remove('dragging');
+  if (d.moved || e.type === 'pointercancel' || !flip || flip.getState() !== 'read') return;
+  const r = $('#book').getBoundingClientRect();
+  if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) return;
+  e.clientX < r.left + r.width / 2 ? flip.flipPrev() : flip.flipNext();
+}
+stage.addEventListener('pointerup', endDrag);
+stage.addEventListener('pointercancel', endDrag);
+
+// ---------- the flipbook ----------
 function onFlip(i) {
   let vis;
   if (flip._single || i === 0) vis = [i];
@@ -469,21 +561,24 @@ function onFlip(i) {
   setCurrent(last);
   renderActions();
   updateNav();
+  if (zoom) stage.scrollTo(0, 0);   // zoomed in: after turning, start at the top of the new pages
 }
-function build(start) {
+function build(start, keep = null) {
   cleanup.forEach(f => f()); cleanup = [];
   if (flip) { try { flip.destroy(); } catch {} flip = null; }
   const phone = isPhone();
+  if (phone) zoom = null;
   setChrome(true);
-  const single = phone ? isPortrait() : stage.getBoundingClientRect().width < 640;
+  stage.classList.toggle('zoomed', !!zoom);
+  const single = phone ? isPortrait() : !zoom && stage.getBoundingClientRect().width < 640;
   const { w, h } = sizeFor(single);
   stage.innerHTML = `<div class="bookwrap"><div id="book"></div>${phone ? '<div class="tapzones"><button data-t="prev" aria-label="Previous page"></button><button data-t="menu" aria-label="Show or hide controls"></button><button data-t="next" aria-label="Next page"></button></div>' : ''}</div>`;
-  stage.appendChild(booknav);
   const pages = [];
   for (let n = 1; n <= numPages; n++) pages.push(makePage(n, w, h));
   flip = new St.PageFlip($('#book'), {
     width: w, height: h, size: 'fixed', showCover: true, usePortrait: single,
-    maxShadowOpacity: .45, mobileScrollSupport: false, flippingTime: 650, useMouseEvents: !phone
+    // Zoomed in, dragging moves the view, so the flipbook's own corner-dragging is switched off.
+    maxShadowOpacity: .45, mobileScrollSupport: false, flippingTime: 650, useMouseEvents: !phone && !zoom
   });
   flip.loadFromHTML(pages);
   Object.assign(flip, { _pages: pages, _w: w, _h: h, _single: single });
@@ -507,7 +602,11 @@ function build(start) {
   // Phones: show the controls briefly so people know they exist, then give the page the full screen.
   clearTimeout(build._t);
   if (phone) build._t = setTimeout(() => { if (!$('#side').classList.contains('open')) setChrome(false); }, 2500);
-  clearTimeout(build._w); build._w = setTimeout(warmChapters, 1500);   // after the first view is on screen
+  booknav.hidden = false;
+  updateZoomUi();
+  if (zoom && keep) stage.scrollTo(keep.rx * stage.scrollWidth - stage.clientWidth / 2, keep.ry * stage.scrollHeight - stage.clientHeight / 2);
+  clearTimeout(build._w);
+  if (!zoom) build._w = setTimeout(warmChapters, 1500);   // after the first view is on screen
 }
 
 // ---------- Flip figure view: the page large and scrollable, a quarter turn to the right ----------
@@ -555,6 +654,11 @@ document.addEventListener('keydown', e => {
     else if (e.key === '+' || e.key === '=') readerZoom(1);
     else if (e.key === '-') readerZoom(-1);
   } else if (e.key === 'Escape') openSide(false);
+  else if (!e.ctrlKey && !e.metaKey && !e.altKey && !e.target.closest('input')) {
+    if (e.key === '+' || e.key === '=') zoomStep(1);
+    else if (e.key === '-') zoomStep(-1);
+    else if (e.key === '0') setZoom(null);
+  }
 });
 
 // ---------- full screen: hides the browser's tabs and address bar, so the book gets more height ----------
