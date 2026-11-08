@@ -7,7 +7,7 @@
 <title>Thesis</title>
 <style>
 /* Layout: a sidebar on the left (title, where you are, contents, download) and the book filling the
-   rest at full height. Narrow screens and phones: the sidebar slides in from a floating button.
+   rest at full height. Narrow screens and phones: the sidebar slides in from the Contents button in the bar.
    Colour: neutral greys; the cover's teal for navigation, its peach for the two document actions. */
 :root {
   --desk: #dfe3e5; --desk-shade: #cfd5d8; --bar: #f6f7f7; --panel: #ffffff;
@@ -82,11 +82,6 @@ body:not(.docked) .side {
 }
 body:not(.docked) .side.open { transform: none; visibility: visible; }
 .scrim { position: fixed; inset: 0; background: rgba(0,0,0,.35); z-index: 30; }
-.float { position: fixed; z-index: 20; top: max(12px, env(safe-area-inset-top, 0px)); transition: transform .25s ease, opacity .25s ease; box-shadow: 0 4px 14px rgba(0,0,0,.18); }
-#opener { left: max(12px, env(safe-area-inset-left, 0px)); }
-#fabDl { right: max(12px, env(safe-area-inset-right, 0px)); }
-body.docked #opener, body.docked #fabDl, body:not(.phone) #fabDl { display: none; }
-body.chrome-off .float { transform: translateY(-160%); opacity: 0; }
 
 /* ---------- stage + book ---------- */
 /* The outer area holds the floating bar; the inner stage holds the book and scrolls when zoomed in. */
@@ -106,8 +101,9 @@ body.phone .stage { padding: 8px; }
 #book .page::after { content: ""; position: absolute; top: 0; bottom: 0; width: 28px; pointer-events: none; z-index: 2; }
 #book .page.l::after { right: 0; background: linear-gradient(to left, rgba(0,0,0,.16), transparent); }
 #book .page.r::after { left: 0; background: linear-gradient(to right, rgba(0,0,0,.12), transparent); }
-.tapzones { position: absolute; inset: 0; display: grid; grid-template-columns: 30% 40% 30%; z-index: 5; }
-.tapzones button { background: transparent; border: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+/* Phones: the viewer handles all touches on the book itself (tap to turn, swipe, pinch to zoom the
+   book only), so the browser must not zoom or scroll the whole page there. */
+body.phone .stage { touch-action: none; -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; }
 
 /* Page number, page turning and Flip figure: one floating bar over the bottom of the book */
 .booknav {
@@ -128,9 +124,14 @@ body.phone #fsBtn { display: none !important; }       /* iPhones don't allow ful
 .booknav .zoomgrp .icon-btn { font-size: 18px; }
 .booknav .pct { min-width: 54px; padding: 0 6px; font-size: 13px; color: var(--ink); }
 .booknav .pct:disabled { opacity: 1; color: var(--muted); cursor: default; }
-body.phone .booknav .zoomgrp { display: none; }      /* phones zoom by pinching */
-body.phone .booknav .icon-btn { display: none; }      /* phones turn pages by tapping left or right */
-body.phone .booknav .count { padding: 0 12px; }
+body.phone .booknav .zoomgrp > .icon-btn { display: none; }   /* phones zoom by pinching; the % shows only when zoomed */
+body.phone .booknav .zoomgrp { border: 0; margin: 0; padding: 0; }
+body.phone .booknav .pct:disabled { display: none; }
+body.phone .booknav > .icon-btn { display: none; }     /* phones turn pages by tapping left or right */
+body.phone .booknav .count { padding: 0 8px; }
+/* Contents button in the bar whenever the sidebar isn't on screen (phones, narrow windows, hidden sidebar) */
+.booknav .navcontents { min-height: 34px; padding: 7px 12px; font-size: 13px; border-radius: 999px; }
+body.docked .booknav .navcontents { display: none; }
 .hint { position: fixed; left: 50%; transform: translateX(-50%); top: calc(env(safe-area-inset-top, 0px) + 70px); z-index: 16; width: min(340px, calc(100% - 32px)); background: var(--ink); color: var(--bar); border-radius: 10px; padding: 12px 12px 12px 16px; display: flex; gap: 12px; align-items: center; font-size: 13px; line-height: 1.4; box-shadow: 0 8px 24px rgba(0,0,0,.3); }
 .hint svg { width: 28px; height: 28px; flex: none; }
 .hint button { margin-left: auto; background: transparent; border: 1px solid rgba(255,255,255,.35); color: inherit; border-radius: 6px; padding: 6px 10px; font: 12px var(--f-ui); }
@@ -145,7 +146,7 @@ body.phone .booknav .count { padding: 0 12px; }
 
 .toast { position: fixed; left: 50%; bottom: max(80px, env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--ink); color: var(--bar); padding: 10px 14px; border-radius: 8px; font-size: 13px; z-index: 50; max-width: calc(100% - 32px); }
 .err { max-width: 50ch; text-align: center; color: var(--muted); }
-@media (prefers-reduced-motion: reduce) { .side, .float { transition: none !important; } }
+@media (prefers-reduced-motion: reduce) { .side { transition: none !important; } }
 </style>
 </head>
 <body>
@@ -169,6 +170,8 @@ body.phone .booknav .count { padding: 0 12px; }
   <div class="stage" id="stage"><p class="err">Loading the book…</p></div>
   <!-- floats over the bottom of the book -->
   <div class="booknav" id="booknav" hidden>
+    <button class="btn teal navcontents" id="navContents" aria-controls="side">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M2 4h12M2 8h12M2 12h8"/></svg>Contents</button>
     <button class="btn ghost icon-btn" id="prev" aria-label="Previous page">‹</button>
     <span class="count" id="count"></span>
     <button class="btn ghost icon-btn" id="next" aria-label="Next page">›</button>
@@ -181,11 +184,6 @@ body.phone .booknav .count { padding: 0 12px; }
     <button class="btn ghost icon-btn" id="fsBtn" aria-label="Full screen" title="Full screen"></button>
   </div>
 </main>
-
-<button class="btn teal float" id="opener" aria-controls="side">
-  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M2 4h12M2 8h12M2 12h8"/></svg>Contents</button>
-<a class="btn peach float dl" id="fabDl" href="thesis.pdf" download>
-  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M8 2v8M4.5 6.5 8 10l3.5-3.5M3 13h10"/></svg>PDF</a>
 
 <div class="hint" id="hint" hidden>
   <svg viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="9" y="3" width="10" height="17" rx="2"/><path d="M5 23a10 10 0 0 0 18 0M20 21l3 2 1-3"/></svg>
@@ -339,7 +337,7 @@ $('#toc').onclick = e => { const a = e.target.closest('a'); if (!a) return; e.pr
 
 // ---------- sidebar: docked next to the book, or a slide-in panel ----------
 // Docked on screens of 900 px and wider, unless the reader hid it. Otherwise it slides in from
-// the floating "Contents" button (on phones there's also a floating "PDF" button).
+// the "Contents" button in the bar over the book. The download button is at the bottom of that panel.
 const COLLAPSE_KEY = 'thesis-side-hidden';
 const ICON_HIDE = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M10 3 5 8l5 5"/></svg>';
 const ICON_PIN = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M6 3l5 5-5 5"/></svg>';
@@ -360,7 +358,7 @@ function openSide(o) {
   $('#side').classList.toggle('open', o); $('#scrim').hidden = !o;
   if (o) setTimeout(() => $('#sideToggle').focus(), 50);
 }
-$('#opener').onclick = () => openSide(true);
+$('#navContents').onclick = () => openSide(true);
 $('#scrim').onclick = () => openSide(false);
 $('#sideToggle').onclick = () => {
   if (document.body.classList.contains('docked')) ls.set(COLLAPSE_KEY, '1');
@@ -374,7 +372,6 @@ function goTo(p) { if (flip) { flip.turnToPage(p - 1); onFlip(flip.getCurrentPag
 // The admin preview can force phone mode, since a desktop mouse never counts as a touch screen.
 const isPhone = () => !!(DRAFT && DRAFT.phone) || (matchMedia('(pointer: coarse)').matches && Math.min(innerWidth, innerHeight) < 600);
 const isPortrait = () => innerHeight > innerWidth;
-function setChrome(on) { document.body.classList.toggle('chrome-off', !on); }
 function updateHint() { $('#hint').hidden = !(isPhone() && isPortrait() && ls.get(HINT_KEY) !== 'done'); }
 $('#hintClose').onclick = () => { ls.set(HINT_KEY, 'done'); updateHint(); };
 
@@ -488,15 +485,17 @@ function sizeFor(single) {
   return { w, h: Math.round(w / aspect) };
 }
 const fitPct = () => fitSize(flip ? flip._single : false).w / printW;
-function setZoom(z) {
-  if (isPhone()) z = null;
-  if (z !== null && z <= fitPct() + 0.005) z = null;        // smaller than fitting: just fit
+// Remember which spot of the book sits at screen point (cx, cy), so it stays there after zooming.
+function anchorAt(cx, cy) {
+  const bw = stage.querySelector('.bookwrap'); if (!bw) return null;
+  const b = bw.getBoundingClientRect(), s = stage.getBoundingClientRect();
+  return { fx: (s.left + cx - b.left) / b.width, fy: (s.top + cy - b.top) / b.height, cx, cy };
+}
+function setZoom(z, anchor = null) {
+  if (z !== null && z <= fitPct() * 1.04) z = null;          // (almost) as small as fitting: just fit
   if (z === zoom) return;
-  // Keep the same spot in the middle of the screen while zooming.
-  const keep = zoom ? { rx: (stage.scrollLeft + stage.clientWidth / 2) / stage.scrollWidth,
-                        ry: (stage.scrollTop + stage.clientHeight / 2) / stage.scrollHeight } : { rx: .5, ry: .3 };
   zoom = z;
-  build(currentPage, keep);
+  build(currentPage, anchor || anchorAt(stage.clientWidth / 2, stage.clientHeight / 2));
 }
 function zoomStep(dir) {
   const cur = zoom || fitPct();
@@ -525,7 +524,7 @@ stage.addEventListener('wheel', e => {
 // Zoomed in: drag to look around; a short click (no movement) turns the page, left half back, right half on.
 let drag = null;
 stage.addEventListener('pointerdown', e => {
-  if (!zoom || e.button !== 0 || e.pointerType === 'touch') return;
+  if (!zoom || e.button !== 0 || e.pointerType !== 'mouse') return;
   const r = stage.getBoundingClientRect();
   if (e.clientX - r.left > stage.clientWidth || e.clientY - r.top > stage.clientHeight) return;   // on a scrollbar
   drag = { id: e.pointerId, x: e.clientX, y: e.clientY, sl: stage.scrollLeft, st: stage.scrollTop, moved: false };
@@ -547,6 +546,69 @@ function endDrag(e) {
 stage.addEventListener('pointerup', endDrag);
 stage.addEventListener('pointercancel', endDrag);
 
+// ---------- phones: touch on the book ----------
+// Tap the left or right part of the screen to turn the page, swipe sideways to turn, pinch to zoom
+// the book (not the whole web page), and drag with one finger to look around when zoomed in.
+const touches = new Map();
+let gesture = null;
+const MAX_ZOOM = 3;
+stage.addEventListener('pointerdown', e => {
+  if (e.pointerType !== 'touch') return;
+  touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  try { stage.setPointerCapture(e.pointerId); } catch {}
+  if (touches.size === 1) {
+    gesture = { type: 'tap', x: e.clientX, y: e.clientY, t: Date.now(), sl: stage.scrollLeft, st: stage.scrollTop };
+  } else if (touches.size === 2) {
+    const [a, b] = [...touches.values()], bw = stage.querySelector('.bookwrap');
+    const cx = (a.x + b.x) / 2, cy = (a.y + b.y) / 2, r = bw.getBoundingClientRect();
+    bw.style.transformOrigin = `${cx - r.left}px ${cy - r.top}px`;
+    gesture = { type: 'pinch', d0: Math.hypot(a.x - b.x, a.y - b.y), cx, cy, z0: zoom || fitPct(), scale: 1, bw };
+  }
+});
+stage.addEventListener('pointermove', e => {
+  if (e.pointerType !== 'touch' || !touches.has(e.pointerId) || !gesture) return;
+  touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (gesture.type === 'pinch' && touches.size >= 2) {
+    // While pinching, stretch the current picture (instant); the sharp redraw happens on release.
+    const [a, b] = [...touches.values()];
+    const z = Math.min(MAX_ZOOM, Math.max(fitPct(), gesture.z0 * Math.hypot(a.x - b.x, a.y - b.y) / gesture.d0));
+    gesture.scale = z / gesture.z0;
+    gesture.bw.style.transform = `scale(${gesture.scale})`;
+  } else if (gesture.type !== 'pinch') {
+    const dx = e.clientX - gesture.x, dy = e.clientY - gesture.y;
+    if (gesture.type === 'tap' && Math.hypot(dx, dy) > 10) gesture.type = 'move';
+    if (gesture.type === 'move' && zoom) { stage.scrollLeft = gesture.sl - dx; stage.scrollTop = gesture.st - dy; }
+  }
+});
+function endTouch(e) {
+  if (e.pointerType !== 'touch' || !touches.has(e.pointerId)) return;
+  touches.delete(e.pointerId);
+  const g = gesture;
+  if (!g) return;
+  if (g.type === 'pinch') {
+    if (touches.size) return;                          // wait until both fingers are off
+    gesture = null;
+    const z = g.z0 * g.scale, s = stage.getBoundingClientRect();
+    const anchor = anchorAt(g.cx - s.left, g.cy - s.top);   // measured on the stretched picture
+    g.bw.style.transform = '';
+    if (Math.abs(g.scale - 1) > 0.02) setZoom(z, anchor);
+    return;
+  }
+  gesture = null;
+  if (e.type === 'pointercancel' || !flip || flip.getState() !== 'read') return;
+  const dx = e.clientX - g.x, dy = e.clientY - g.y;
+  if (g.type === 'tap' && Date.now() - g.t < 500) {
+    const x = (e.clientX - stage.getBoundingClientRect().left) / stage.clientWidth;
+    if (x < 0.35) flip.flipPrev(); else if (x > 0.65) flip.flipNext();
+  } else if (g.type === 'move' && !zoom && Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.5) {
+    dx < 0 ? flip.flipNext() : flip.flipPrev();       // swipe to turn
+  }
+}
+stage.addEventListener('pointerup', endTouch);
+stage.addEventListener('pointercancel', endTouch);
+// iPhone Safari has its own pinch gesture events; stop them from zooming the whole page.
+['gesturestart', 'gesturechange'].forEach(t => document.addEventListener(t, e => e.preventDefault(), { passive: false }));
+
 // ---------- the flipbook ----------
 function onFlip(i) {
   let vis;
@@ -567,12 +629,10 @@ function build(start, keep = null) {
   cleanup.forEach(f => f()); cleanup = [];
   if (flip) { try { flip.destroy(); } catch {} flip = null; }
   const phone = isPhone();
-  if (phone) zoom = null;
-  setChrome(true);
   stage.classList.toggle('zoomed', !!zoom);
   const single = phone ? isPortrait() : !zoom && stage.getBoundingClientRect().width < 640;
   const { w, h } = sizeFor(single);
-  stage.innerHTML = `<div class="bookwrap"><div id="book"></div>${phone ? '<div class="tapzones"><button data-t="prev" aria-label="Previous page"></button><button data-t="menu" aria-label="Show or hide controls"></button><button data-t="next" aria-label="Next page"></button></div>' : ''}</div>`;
+  stage.innerHTML = `<div class="bookwrap"><div id="book"></div></div>`;
   const pages = [];
   for (let n = 1; n <= numPages; n++) pages.push(makePage(n, w, h));
   flip = new St.PageFlip($('#book'), {
@@ -589,24 +649,17 @@ function build(start, keep = null) {
   onFlip(flip.getCurrentPageIndex());
   $('#prev').onclick = () => flip.flipPrev();
   $('#next').onclick = () => flip.flipNext();
-  const tz = stage.querySelector('.tapzones');
-  if (tz) tz.onclick = e => {
-    const t = e.target.dataset.t;
-    if (t === 'prev') { flip.flipPrev(); setChrome(false); }
-    else if (t === 'next') { flip.flipNext(); setChrome(false); }
-    else setChrome(document.body.classList.contains('chrome-off'));
-  };
   // Desktop: click a page to turn it (the flipbook does this itself), or drag a corner, or use the keys.
   const key = e => { if (!$('#reader').hidden || $('#side').classList.contains('open')) return; if (e.key === 'ArrowRight') flip.flipNext(); if (e.key === 'ArrowLeft') flip.flipPrev(); };
   document.addEventListener('keydown', key);
   cleanup.push(() => document.removeEventListener('keydown', key));
   updateHint();
-  // Phones: show the controls briefly so people know they exist, then give the page the full screen.
-  clearTimeout(build._t);
-  if (phone) build._t = setTimeout(() => { if (!$('#side').classList.contains('open')) setChrome(false); }, 2500);
   booknav.hidden = false;
   updateZoomUi();
-  if (zoom && keep) stage.scrollTo(keep.rx * stage.scrollWidth - stage.clientWidth / 2, keep.ry * stage.scrollHeight - stage.clientHeight / 2);
+  if (zoom && keep) {   // put the remembered spot of the book back under the same screen point
+    const bw = stage.querySelector('.bookwrap');
+    stage.scrollTo(bw.offsetLeft + keep.fx * bw.offsetWidth - keep.cx, bw.offsetTop + keep.fy * bw.offsetHeight - keep.cy);
+  }
   clearTimeout(build._w);
   if (!zoom) build._w = setTimeout(warmChapters, 1500);   // after the first view is on screen
 }
