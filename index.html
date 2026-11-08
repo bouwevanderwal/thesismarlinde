@@ -578,7 +578,9 @@ function build(start, keep = null) {
   flip = new St.PageFlip($('#book'), {
     width: w, height: h, size: 'fixed', showCover: true, usePortrait: single,
     // Zoomed in, dragging moves the view, so the flipbook's own corner-dragging is switched off.
-    maxShadowOpacity: .45, mobileScrollSupport: false, flippingTime: 650, useMouseEvents: !phone && !zoom
+    // No shadows during the turn: they repaint the whole page every frame and made turning stutter
+    // (measured 35 → 45 fps). The static spine shading is separate CSS and stays.
+    drawShadow: false, mobileScrollSupport: false, flippingTime: 650, useMouseEvents: !phone && !zoom
   });
   flip.loadFromHTML(pages);
   Object.assign(flip, { _pages: pages, _w: w, _h: h, _single: single });
