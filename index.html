@@ -39,6 +39,7 @@ body {
   font: 14px/1 var(--f-ui); border-radius: 6px; padding: 9px 14px; cursor: pointer;
   border: 1px solid var(--line); background: transparent; color: var(--ink); text-decoration: none; white-space: nowrap;
   display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 38px;
+  box-sizing: border-box;   /* min-height is the whole button, padding included */
 }
 .btn:hover { border-color: var(--teal); }
 .btn:disabled { opacity: .35; cursor: default; border-color: var(--line); }
