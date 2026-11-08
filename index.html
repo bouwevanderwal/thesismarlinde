@@ -156,7 +156,8 @@ body.docked .booknav .navcontents { display: none; }
 .rbar { flex: none; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding-block: 10px; padding-top: max(10px, env(safe-area-inset-top, 0px)); padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); color: #fff; font-variant-numeric: tabular-nums; }
 .rbar .btn { color: #fff; border-color: rgba(255,255,255,.35); min-width: 38px; }
 .rbar .lbl { margin-right: auto; }
-.rscroll { flex: 1 1 auto; min-height: 0; overflow: auto; padding: 8px 16px max(24px, env(safe-area-inset-bottom, 0px)); -webkit-overflow-scrolling: touch; }
+.rscroll { position: relative; flex: 1 1 auto; min-height: 0; overflow: auto; padding: 8px 16px max(24px, env(safe-area-inset-bottom, 0px)); -webkit-overflow-scrolling: touch; }
+body.phone .rscroll { touch-action: none; }   /* the viewer handles pinch and one-finger dragging here too */
 .rscroll canvas { display: block; margin: 0 auto; background: #fff; box-shadow: 0 10px 40px rgba(0,0,0,.4); }
 
 .toast { position: fixed; left: 50%; bottom: max(80px, env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--ink); color: var(--bar); padding: 10px 14px; border-radius: 8px; font-size: 13px; z-index: 50; max-width: calc(100% - 32px); }
@@ -262,8 +263,10 @@ async function renderInto(canvas, n, w, h, { extraRot = 0, fitRotate = true, onT
   rot = (rot + extraRot) % 360;
   const v1 = page.getViewport({ scale: 1, rotation: rot });
   const scale = Math.min(w / v1.width, h / v1.height);
-  // Zoomed-in pages are big: keep each drawing under ~6 megapixels so memory stays reasonable.
-  const res = Math.min(RES, Math.sqrt(6e6 / Math.max(1, w * h)));
+  // Zoomed-in pages are big: keep each drawing under a pixel budget so memory stays reasonable.
+  // Phones get a much tighter budget: iPhone Safari reloads the whole page when the drawings
+  // together pass ~224 MB (measured: 206 MB after zooming in with the old budget).
+  const res = Math.min(isPhone() ? 2 : RES, Math.sqrt((isPhone() ? 2.5e6 : 6e6) / Math.max(1, w * h)));
   const vp = page.getViewport({ scale: scale * res, rotation: rot });
   canvas.width = Math.floor(vp.width); canvas.height = Math.floor(vp.height);
   const task = page.render({ canvasContext: canvas.getContext('2d'), viewport: vp });
@@ -391,12 +394,14 @@ function updateHint() { $('#hint').hidden = !(isPhone() && isPortrait() && ls.ge
 $('#hintClose').onclick = () => { ls.set(HINT_KEY, 'done'); updateHint(); };
 
 // ---------- pages ----------
-function makePage(n, w, h) {
+function makePage(n, w, h, keepCanvas = null) {
   const el = document.createElement('div');
   el.className = 'page' + (n > 1 && n < numPages ? (n % 2 === 0 ? ' l' : ' r') : '');
   if (n === 1 || n === numPages) el.dataset.density = 'hard';
   el.style.width = w + 'px'; el.style.height = h + 'px';
-  el.innerHTML = `<div class="ph">p. ${n}</div>`;
+  // After zooming, the old picture is shown stretched until the sharp one is drawn: no blank pages.
+  if (keepCanvas) { keepCanvas.style.width = keepCanvas.style.height = '100%'; el.append(keepCanvas); }
+  else el.innerHTML = `<div class="ph">p. ${n}</div>`;
   el.dataset.n = n;
   return el;
 }
@@ -421,6 +426,7 @@ function pump() {
       .then(() => {
         if (el.dataset.state !== 'busy') { c.width = c.height = 0; return; }   // cleared while drawing
         el.querySelector('.ph')?.remove(); c.style.width = c.style.height = '100%';
+        el.querySelectorAll('canvas').forEach(o => { o.width = o.height = 0; o.remove(); });   // an old stretched picture
         el.prepend(c); el.dataset.state = 'done';
       })
       .catch(() => { delete el.dataset.state; })
@@ -430,7 +436,8 @@ function pump() {
 function clearFar(center) {
   flip._pages.forEach((el, k) => {
     const n = k + 1;
-    if (Math.abs(n - center) <= (zoom ? 4 : KEEP) || !el.dataset.state || CHAPTER_PAGES.has(n)) return;
+    const keep = isPhone() ? (zoom ? 2 : 3) : (zoom ? 4 : KEEP);   // how many pages either side stay drawn
+    if (Math.abs(n - center) <= keep || (!el.dataset.state && !el.querySelector('canvas')) || CHAPTER_PAGES.has(n)) return;
     const c = el.querySelector('canvas'); if (c) { c.width = c.height = 0; c.remove(); }
     if (!el.querySelector('.ph')) el.insertAdjacentHTML('afterbegin', `<div class="ph">p. ${n}</div>`);
     delete el.dataset.state;
@@ -569,6 +576,11 @@ let gesture = null;
 const MAX_ZOOM = 3;
 stage.addEventListener('pointerdown', e => {
   if (e.pointerType !== 'touch') return;
+  if (e.isPrimary) {   // first finger of a new touch: forget anything left over from the last one
+    touches.clear();
+    if (gesture && gesture.bw) gesture.bw.style.transform = '';
+    gesture = null;
+  }
   touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
   try { stage.setPointerCapture(e.pointerId); } catch {}
   if (touches.size === 1) {
@@ -642,14 +654,22 @@ function onFlip(i) {
 }
 function build(start, keep = null) {
   cleanup.forEach(f => f()); cleanup = [];
-  if (flip) { try { flip.destroy(); } catch {} flip = null; }
+  const carry = new Map();   // finished pictures near the current page, reused as stand-ins
+  if (flip) {
+    const near = isPhone() ? 2 : 6;
+    flip._pages.forEach((el, k) => {
+      const c = el.querySelector('canvas'); if (!c) return;
+      if (Math.abs(k + 1 - currentPage) <= near) carry.set(k + 1, c); else { c.width = c.height = 0; }   // free the rest right away
+    });
+    try { flip.destroy(); } catch {} flip = null;
+  }
   const phone = isPhone();
   stage.classList.toggle('zoomed', !!zoom);
   const single = phone ? isPortrait() : !zoom && stage.getBoundingClientRect().width < 640;
   const { w, h } = sizeFor(single);
   stage.innerHTML = `<div class="bookwrap"><div id="book"></div></div>`;
   const pages = [];
-  for (let n = 1; n <= numPages; n++) pages.push(makePage(n, w, h));
+  for (let n = 1; n <= numPages; n++) pages.push(makePage(n, w, h, carry.get(n)));
   flip = new St.PageFlip($('#book'), {
     width: w, height: h, size: 'fixed', showCover: true, usePortrait: single,
     // Zoomed in, dragging moves the view, so the flipbook's own corner-dragging is switched off.
@@ -680,19 +700,20 @@ function build(start, keep = null) {
 }
 
 // ---------- Flip figure view: the page large and scrollable, a quarter turn to the right ----------
-const ZOOMS = [1, 1.5, 2, 3];
-let R = { n: 1, rot: 0, z: 0, task: null, gen: 0 };
-async function drawReader() {
+// R.f is the zoom factor: 1 fits the figure to the width of the screen, up to 4.
+const R_STEPS = [1, 1.5, 2, 3, 4], R_MAX = 4;
+let R = { n: 1, rot: 0, f: 1, task: null, gen: 0 };
+async function drawReader(anchor = null) {
   const gen = ++R.gen, scroll = $('#rScroll');
   $('#rLabel').textContent = `Figure on p. ${R.n}`;
-  $('#rOut').disabled = R.z === 0; $('#rIn').disabled = R.z === ZOOMS.length - 1;
+  $('#rOut').disabled = R.f <= 1.001; $('#rIn').disabled = R.f >= R_MAX - 0.001;
   const page = await getPage(R.n);
   if (gen !== R.gen) return;
   const rot = (page.rotate + R.rot) % 360;
   const v1 = page.getViewport({ scale: 1, rotation: rot });
-  const cssW = Math.min(scroll.clientWidth - 32, 1100) * ZOOMS[R.z];
+  const cssW = Math.min(scroll.clientWidth - 32, 1100) * R.f;
   const cssH = cssW * v1.height / v1.width;
-  const res = Math.min(RES, Math.sqrt(16e6 / (cssW * cssH)));   // keep the canvas under ~16 megapixels
+  const res = Math.min(isPhone() ? 2 : RES, Math.sqrt((isPhone() ? 4e6 : 16e6) / (cssW * cssH)));   // pixel budget (tighter on phones)
   const vp = page.getViewport({ scale: cssW / v1.width * res, rotation: rot });
   const c = document.createElement('canvas');
   c.width = Math.floor(vp.width); c.height = Math.floor(vp.height);
@@ -702,17 +723,66 @@ async function drawReader() {
   try { await R.task.promise; } catch { return; }   // cancelled by a newer request
   if (gen !== R.gen) return;
   const old = $('#rCanvas'); c.id = 'rCanvas'; old.replaceWith(c); old.width = old.height = 0;
+  if (anchor) scroll.scrollTo(c.offsetLeft + anchor.fx * cssW - anchor.cx, c.offsetTop + anchor.fy * cssH - anchor.cy);
 }
 function openReader(n, figure = false) {
   getPage(n).then(p => {
     const v = p.getViewport({ scale: 1 });
     // Flip figure: turn a portrait page a quarter to the right; a landscape page is already upright here.
-    R.n = n; R.z = 0; R.rot = figure && v.height > v.width ? 90 : 0;
+    R.n = n; R.f = 1; R.rot = figure && v.height > v.width ? 90 : 0;
     $('#reader').hidden = false; $('#rScroll').scrollTo(0, 0);
     drawReader();
   });
 }
-function readerZoom(d) { const z = Math.max(0, Math.min(ZOOMS.length - 1, R.z + d)); if (z !== R.z) { R.z = z; drawReader(); } }
+function readerZoom(d) {
+  const next = d > 0 ? R_STEPS.find(s => s > R.f + 0.01) : [...R_STEPS].reverse().find(s => s < R.f - 0.01);
+  if (!next) return;
+  const sc = $('#rScroll'), c = $('#rCanvas'), r = c.getBoundingClientRect(), s = sc.getBoundingClientRect();
+  const cx = sc.clientWidth / 2, cy = sc.clientHeight / 2;   // keep the middle of the screen in place
+  R.f = next;
+  drawReader({ fx: (s.left + cx - r.left) / r.width, fy: (s.top + cy - r.top) / r.height, cx, cy });
+}
+// Touch in the figure view: one finger drags, two fingers pinch. Works exactly like the book.
+(() => {
+  const sc = $('#rScroll'), pts = new Map(); let g = null;
+  sc.addEventListener('pointerdown', e => {
+    if (e.pointerType !== 'touch') return;
+    if (e.isPrimary) { pts.clear(); g = null; }
+    pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    try { sc.setPointerCapture(e.pointerId); } catch {}
+    if (pts.size === 1) g = { type: 'pan', x: e.clientX, y: e.clientY, sl: sc.scrollLeft, st: sc.scrollTop };
+    else if (pts.size === 2) {
+      const [a, b] = [...pts.values()], c = $('#rCanvas'), r = c.getBoundingClientRect();
+      const cx = (a.x + b.x) / 2, cy = (a.y + b.y) / 2;
+      c.style.transformOrigin = `${cx - r.left}px ${cy - r.top}px`;
+      g = { type: 'pinch', d0: Math.hypot(a.x - b.x, a.y - b.y), cx, cy, f0: R.f, scale: 1, c };
+    }
+  });
+  sc.addEventListener('pointermove', e => {
+    if (e.pointerType !== 'touch' || !pts.has(e.pointerId) || !g) return;
+    pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (g.type === 'pinch' && pts.size >= 2) {
+      const [a, b] = [...pts.values()];
+      const f = Math.min(R_MAX, Math.max(1, g.f0 * Math.hypot(a.x - b.x, a.y - b.y) / g.d0));
+      g.scale = f / g.f0; g.c.style.transform = `scale(${g.scale})`;
+    } else if (g.type === 'pan') {
+      sc.scrollLeft = g.sl - (e.clientX - g.x); sc.scrollTop = g.st - (e.clientY - g.y);
+    }
+  });
+  const end = e => {
+    if (e.pointerType !== 'touch' || !pts.has(e.pointerId)) return;
+    pts.delete(e.pointerId);
+    if (!g || g.type !== 'pinch') { if (!pts.size) g = null; return; }
+    if (pts.size) return;                                 // wait until both fingers are off
+    const s = sc.getBoundingClientRect(), r = g.c.getBoundingClientRect();
+    const anchor = { fx: (g.cx - r.left) / r.width, fy: (g.cy - r.top) / r.height, cx: g.cx - s.left, cy: g.cy - s.top };
+    if (Math.abs(g.scale - 1) > 0.02) { R.f = g.f0 * g.scale; drawReader(anchor); }   // old picture stays until the sharp one is ready
+    else g.c.style.transform = '';
+    g = null;
+  };
+  sc.addEventListener('pointerup', end);
+  sc.addEventListener('pointercancel', end);
+})();
 function closeReader() { $('#reader').hidden = true; if (R.task) R.task.cancel(); R.gen++; }
 $('#rIn').onclick = () => readerZoom(1);
 $('#rOut').onclick = () => readerZoom(-1);
