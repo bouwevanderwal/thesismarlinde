@@ -309,11 +309,10 @@ async function loadBook() {
     doc = await pdfjsLib.getDocument({ data: new Uint8Array(await draft.blob.arrayBuffer()) }).promise;
     url = URL.createObjectURL(draft.blob); size = draft.blob.size;
   } else {
-    // Range requests: the pages you look at are fetched first, so a 40 MB thesis opens as fast as a
-    // small one. On computers the rest then downloads in the background, so jumping to a chapter is
-    // instant once it's in. Phones (and data-saver mode) only fetch what is looked at, to spare data.
+    // Range requests: only the pages you look at (plus the next few) are fetched, so a 40 MB thesis
+    // opens as fast as a small one and a short visit costs a few MB instead of the whole file.
     spareData = isPhone() || !!(navigator.connection && navigator.connection.saveData);
-    try { doc = await pdfjsLib.getDocument({ url, disableAutoFetch: spareData, disableStream: true, rangeChunkSize: 524288 }).promise; }
+    try { doc = await pdfjsLib.getDocument({ url, disableAutoFetch: true, disableStream: true, rangeChunkSize: 524288 }).promise; }
     catch (e) { throw new Error(`the file “${decodeURIComponent(url.split('/').pop())}” was not found next to this page. Check the "pdf" name in config.json`); }
     // File size for the download button, asked separately: never wait for the whole PDF to arrive.
     fetch(url, { method: 'HEAD' }).then(r => {
@@ -329,7 +328,10 @@ async function loadBook() {
   printW = v1.width * 96 / 72;   // 100% = printed size
   $('#title').textContent = config.title || 'Thesis';
   document.title = config.title || 'Thesis';
-  $$('.dl').forEach(a => { a.href = url; a.download = fileName(config.title); if (size) a.querySelector('.size').textContent = fmtSize(size); });
+  // The download button can point elsewhere (e.g. a GitHub Release), so downloads don't count
+  // towards the website's monthly data limit. Without "download" in config.json it uses the same PDF.
+  const dlUrl = !draft && config.download ? config.download : url;
+  $$('.dl').forEach(a => { a.href = dlUrl; a.download = fileName(config.title); if (size) a.querySelector('.size').textContent = fmtSize(size); });
   renderToc();
 }
 
@@ -379,7 +381,9 @@ function applyMode() {
   else if (wideEnough()) { t.innerHTML = ICON_PIN; t.setAttribute('aria-label', 'Keep sidebar open'); t.title = 'Keep sidebar open'; }
   else { t.innerHTML = ICON_CLOSE; t.setAttribute('aria-label', 'Close'); t.title = 'Close'; }
 }
+['pointerenter', 'focusin'].forEach(t => $('#toc').addEventListener(t, () => { if (!zoom) warmChapters(); }));
 function openSide(o) {
+  if (o && !zoom) warmChapters();
   if (document.body.classList.contains('docked')) o = false;
   $('#side').classList.toggle('open', o); $('#scrim').hidden = !o;
   if (o) setTimeout(() => $('#sideToggle').focus(), 50);
@@ -460,7 +464,8 @@ function clearFar(center) {
 let CHAPTER_PAGES = new Set(), warmTask = null, warmPage = 0, warmRun = 0;
 const spreadOf = p => p <= 1 ? [1] : p % 2 === 0 ? [p, p + 1] : [p - 1, p];
 async function warmChapters() {
-  if (spareData || !flip) return;
+  if (spareData || !flip || flip._warmStarted) return;
+  flip._warmStarted = true;
   const run = ++warmRun, book = flip;
   CHAPTER_PAGES = new Set(config.chapters.flatMap(ch => spreadOf(ch.page)).filter(n => n <= numPages));
   const todo = [...CHAPTER_PAGES];
@@ -713,7 +718,9 @@ function build(start, keep = null) {
     stage.scrollTo(bw.offsetLeft + keep.fx * bw.offsetWidth - keep.cx, bw.offsetTop + keep.fy * bw.offsetHeight - keep.cy);
   }
   clearTimeout(build._w);
-  if (!zoom) build._w = setTimeout(warmChapters, 1500);   // after the first view is on screen
+  // Chapter openings (about 17 MB of artwork) are fetched only for visitors who look like they'll
+  // navigate: pointing at or opening the contents, or staying 15 seconds. A quick look costs a few MB.
+  if (!zoom) build._w = setTimeout(warmChapters, 15000);
 }
 
 // ---------- Flip figure view: the page large and scrollable, a quarter turn to the right ----------
