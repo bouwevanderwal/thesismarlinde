@@ -29,6 +29,7 @@
   --peach: #f2af78; --peach-ink: #3d2410; --peach-line: #f2af78; color-scheme: dark }
 
 html, body { height: 100%; }
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }   /* iPhone: don't enlarge text in landscape */
 body {
   background: radial-gradient(ellipse at 50% 40%, var(--desk) 0%, var(--desk-shade) 100%) fixed, var(--desk);
   color: var(--ink); font-family: var(--f-ui); font-size: 14px;
@@ -81,6 +82,19 @@ body:not(.docked) .side {
   box-shadow: 8px 0 30px rgba(0,0,0,.18);
 }
 body:not(.docked) .side.open { transform: none; visibility: visible; }
+body:not(.docked) .side { overscroll-behavior: contain; }
+/* Low screens (a phone held sideways): the whole panel scrolls as one, with a compact title,
+   and the download button stays pinned at the bottom. */
+@media (max-height: 560px) {
+  body:not(.docked) .side { overflow-y: auto; -webkit-overflow-scrolling: touch; }
+  body:not(.docked) .side .toc { flex: none; overflow: visible; }
+  body:not(.docked) .side-head { padding: 12px 8px 8px 20px; }
+  body:not(.docked) .side-head h1 { font-size: 15px; -webkit-line-clamp: 2; }
+  body:not(.docked) .label { padding-top: 10px; }
+  body:not(.docked) .toc a { padding: 7px 12px; }
+  body:not(.docked) .side-foot { position: sticky; bottom: 0; background: var(--panel); padding-block: 10px; }
+  body:not(.docked) .side-foot .btn { min-height: 36px; }
+}
 .scrim { position: fixed; inset: 0; background: rgba(0,0,0,.35); z-index: 30; }
 
 /* ---------- stage + book ---------- */
