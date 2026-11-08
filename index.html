@@ -6,61 +6,94 @@
 <style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
 <title>Thesis</title>
 <style>
-/* Layout: slim bar on top, the book centred on a quiet "reading desk"; contents slide in from the left.
-   On phones the bar and toolbar float over a full-screen book and can be tapped away.
+/* Layout: a sidebar on the left (title, where you are, contents, download) and the book filling the
+   rest at full height. Narrow screens and phones: the sidebar slides in from a floating button.
    Colour: neutral greys; the cover's teal for navigation, its peach for the two document actions. */
 :root {
   --desk: #dfe3e5; --desk-shade: #cfd5d8; --bar: #f6f7f7; --panel: #ffffff;
-  --ink: #1d2a31; --muted: #5a6970; --line: #c9d0d3;
+  --ink: #1d2a31; --muted: #5a6970; --line: #d3d9dc;
   --teal: #3b7590; --teal-2: #5e98a3; --teal-ink: #ffffff; --teal-soft: #e3eff2;
   --peach: #f2af78; --peach-ink: #3d2410; --peach-line: #d98f52;
-  --overlay: rgba(20, 30, 36, .86); --reader-bg: #1c262b;
+  --reader-bg: #1c262b;
   --f-title: Georgia, "Times New Roman", serif;
   --f-ui: Georgia, "Times New Roman", serif;
+  --side-w: 280px;
 }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
   --desk: #161b1e; --desk-shade: #0f1315; --bar: #1f262a; --panel: #1a2024; --ink: #e4e9eb; --muted: #9aa8ae;
-  --line: #34404a; --teal: #4f8ea6; --teal-2: #6aa6b0; --teal-ink: #ffffff; --teal-soft: #1e3640;
-  --peach: #f2af78; --peach-ink: #3d2410; --peach-line: #f2af78; --overlay: rgba(5, 8, 10, .9); color-scheme: dark } }
+  --line: #2f3a42; --teal: #4f8ea6; --teal-2: #6aa6b0; --teal-ink: #ffffff; --teal-soft: #1e3640;
+  --peach: #f2af78; --peach-ink: #3d2410; --peach-line: #f2af78; color-scheme: dark } }
 :root[data-theme="dark"] {
   --desk: #161b1e; --desk-shade: #0f1315; --bar: #1f262a; --panel: #1a2024; --ink: #e4e9eb; --muted: #9aa8ae;
-  --line: #34404a; --teal: #4f8ea6; --teal-2: #6aa6b0; --teal-ink: #ffffff; --teal-soft: #1e3640;
-  --peach: #f2af78; --peach-ink: #3d2410; --peach-line: #f2af78; --overlay: rgba(5, 8, 10, .9); color-scheme: dark }
+  --line: #2f3a42; --teal: #4f8ea6; --teal-2: #6aa6b0; --teal-ink: #ffffff; --teal-soft: #1e3640;
+  --peach: #f2af78; --peach-ink: #3d2410; --peach-line: #f2af78; color-scheme: dark }
 
 html, body { height: 100%; }
 body {
   background: radial-gradient(ellipse at 50% 40%, var(--desk) 0%, var(--desk-shade) 100%) fixed, var(--desk);
   color: var(--ink); font-family: var(--f-ui); font-size: 14px;
-  display: flex; flex-direction: column; overflow: hidden;
+  display: flex; overflow: hidden;
 }
-body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--bar); }
-.gutter { padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
-
-/* top */
-.top { flex: none; z-index: 15; transition: transform .25s ease; }
-.bar { display: flex; align-items: center; gap: 10px 16px; min-height: 56px; background: var(--bar); border-bottom: 1px solid var(--line); padding-block: 8px; }
-.bar h1 { font-family: var(--f-title); font-weight: 600; font-size: 19px; margin: 0; flex: 1 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.dl-wrap { display: flex; align-items: center; gap: 12px; }
-.dl-wrap p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.35; max-width: 34ch; }
 .btn {
   font: 14px/1 var(--f-ui); border-radius: 6px; padding: 9px 14px; cursor: pointer;
   border: 1px solid var(--line); background: transparent; color: var(--ink); text-decoration: none; white-space: nowrap;
-  display: inline-flex; align-items: center; gap: 8px; min-height: 38px;
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 38px;
 }
 .btn:hover { border-color: var(--teal); }
+.btn:disabled { opacity: .35; cursor: default; border-color: var(--line); }
 .btn.ghost { border-color: transparent; }
 .btn:focus-visible, .toc a:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
 .btn small { opacity: .75; font-size: 12px; }
 .btn svg { width: 17px; height: 17px; flex: none; }
-/* Contents: the cover's teal gradient, so navigation is the first thing you notice */
-.btn.contents { background: linear-gradient(135deg, var(--teal), var(--teal-2)); color: var(--teal-ink); border-color: transparent; font-size: 15px; padding: 9px 16px 9px 13px; }
-.btn.contents:hover { filter: brightness(1.07); }
-/* Peach: the two things you do with the document (download, flip a figure) */
+.icon-btn { width: 38px; padding: 0; }
+.btn.teal { background: linear-gradient(135deg, var(--teal), var(--teal-2)); color: var(--teal-ink); border-color: transparent; }
+.btn.teal:hover { filter: brightness(1.07); }
 .btn.peach { background: var(--peach); color: var(--peach-ink); border-color: var(--peach-line); }
 .btn.peach:hover { filter: brightness(1.04); border-color: var(--peach-ink); }
 
-/* stage + book */
-.stage { flex: 1 1 auto; min-height: 0; position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; padding-block: 16px; }
+/* ---------- sidebar ---------- */
+.side {
+  flex: none; width: var(--side-w); height: 100%; box-sizing: border-box; min-width: 0;
+  display: flex; flex-direction: column; background: var(--panel); border-right: 1px solid var(--line);
+  padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); padding-left: env(safe-area-inset-left, 0px);
+}
+.side-head { display: flex; gap: 6px; align-items: flex-start; padding: 20px 10px 14px 20px; }
+.side-head h1 {
+  font: 700 17px/1.32 var(--f-title); margin: 0; flex: 1 1 auto; min-width: 0; text-wrap: balance;
+  display: -webkit-box; -webkit-line-clamp: 5; -webkit-box-orient: vertical; overflow: hidden;
+}
+.where { display: flex; align-items: center; gap: 6px; padding: 0 16px 14px 20px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.where .count { flex: 1 1 auto; text-align: center; font-size: 13px; }
+.actions { display: grid; gap: 8px; padding: 0 16px 14px 20px; }
+.actions:empty { display: none; }
+.label { margin: 0; padding: 14px 20px 6px; font-size: 11px; font-weight: 400; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); border-top: 1px solid var(--line); }
+.toc { list-style: none; margin: 0; padding: 0 8px 10px; overflow-y: auto; flex: 1 1 auto; min-height: 0; }
+.toc a { display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; padding: 9px 12px; border-radius: 6px; color: var(--ink); text-decoration: none; line-height: 1.35; font-size: 14px; }
+.toc a small { grid-column: 1 / -1; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.toc a .pg { color: var(--muted); font-variant-numeric: tabular-nums; font-size: 13px; align-self: start; }
+.toc a:hover { background: var(--teal-soft); }
+.toc a[aria-current="true"] { background: var(--teal-soft); color: var(--teal); font-weight: 700; }
+.toc a[aria-current="true"] small, .toc a[aria-current="true"] .pg { color: var(--teal); }
+.side-foot { flex: none; border-top: 1px solid var(--line); padding: 14px 16px 16px 20px; display: grid; gap: 10px; }
+.side-foot p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.45; }
+
+/* sidebar as a slide-in panel (narrow screens, phones, or hidden by the reader) */
+body:not(.docked) .side {
+  position: fixed; top: 0; bottom: 0; left: 0; width: min(320px, 88vw); z-index: 31;
+  transform: translateX(-102%); visibility: hidden; transition: transform .25s ease, visibility .25s;
+  box-shadow: 8px 0 30px rgba(0,0,0,.18);
+}
+body:not(.docked) .side.open { transform: none; visibility: visible; }
+.scrim { position: fixed; inset: 0; background: rgba(0,0,0,.35); z-index: 30; }
+.float { position: fixed; z-index: 20; top: max(12px, env(safe-area-inset-top, 0px)); transition: transform .25s ease, opacity .25s ease; box-shadow: 0 4px 14px rgba(0,0,0,.18); }
+#opener { left: max(12px, env(safe-area-inset-left, 0px)); }
+#fabDl { right: max(12px, env(safe-area-inset-right, 0px)); }
+body.docked #opener, body.docked #fabDl, body:not(.phone) #fabDl { display: none; }
+body.chrome-off .float { transform: translateY(-160%); opacity: 0; }
+
+/* ---------- stage + book ---------- */
+.stage { flex: 1 1 auto; min-width: 0; height: 100%; box-sizing: border-box; position: relative; display: flex; align-items: center; justify-content: center; padding: 16px max(16px, env(safe-area-inset-right, 0px)) 16px 16px; }
+body.phone .stage { padding: 8px; }
 .bookwrap { position: relative; }
 #book { position: relative; }   /* no CSS filter here: it makes the browser re-rasterise the pages and soften text */
 #book .page { box-shadow: 0 8px 22px rgba(0,0,0,.16); }
@@ -73,97 +106,56 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
 .tapzones { position: absolute; inset: 0; display: grid; grid-template-columns: 30% 40% 30%; z-index: 5; }
 .tapzones button { background: transparent; border: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
 
-/* toolbar under the book */
-.tools { flex: none; display: flex; gap: 8px 10px; align-items: center; justify-content: center; flex-wrap: wrap; padding-block: 0 16px; font-variant-numeric: tabular-nums; color: var(--muted); z-index: 15; transition: transform .25s ease; }
-.tools .count { min-width: 12ch; text-align: center; line-height: 1.3; }
-.tools .count b { display: block; color: var(--ink); font-weight: 500; font-size: 12px; max-width: 28ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-
-/* contents drawer */
-.scrim { position: fixed; inset: 0; background: rgba(0,0,0,.35); z-index: 30; }
-.drawer {
-  position: fixed; top: 0; bottom: 0; left: 0; width: min(360px, 88vw); z-index: 31; background: var(--panel); border-right: 1px solid var(--line);
-  display: flex; flex-direction: column; transform: translateX(-102%); transition: transform .25s ease; visibility: hidden;
-  padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); padding-left: env(safe-area-inset-left, 0px);
-}
-.drawer.open { transform: none; visibility: visible; }
-.drawer header { display: flex; align-items: center; justify-content: space-between; padding: 14px 12px 10px 20px; }
-.drawer h2 { font-family: var(--f-title); font-size: 20px; font-weight: 600; margin: 0; }
-.toc { list-style: none; margin: 0; padding: 0 8px; overflow-y: auto; flex: 1 1 auto; }
-.toc a { display: flex; justify-content: space-between; gap: 12px; padding: 12px; border-radius: 6px; color: var(--ink); text-decoration: none; line-height: 1.35; }
-.toc a span:last-child { color: var(--muted); font-variant-numeric: tabular-nums; flex: none; }
-.toc a:hover, .toc a[aria-current="true"] { background: var(--teal-soft); }
-.toc a[aria-current="true"] { color: var(--teal); font-weight: 600; }
-.toc a { font-size: 15px; }
-.icon-btn { width: 36px; height: 36px; padding: 0; justify-content: center; }
-
-/* phones: floating chrome over a full-screen book */
-body.immersive .top { position: fixed; top: 0; left: 0; right: 0; padding-top: env(safe-area-inset-top, 0px); }
-body.immersive .stage { padding-block: 8px; }
-body.immersive .tools { position: fixed; left: 0; right: 0; bottom: 0; padding-block: 10px; padding-bottom: max(10px, env(safe-area-inset-bottom, 0px)); background: var(--bar); border-top: 1px solid var(--line); }
-body.chrome-off .top { transform: translateY(-110%); }
-body.chrome-off .tools { transform: translateY(110%); }
-.pill { position: fixed; left: 50%; transform: translateX(-50%); bottom: max(16px, env(safe-area-inset-bottom, 0px)); z-index: 16; }
-.hint { position: fixed; left: 50%; transform: translateX(-50%); top: calc(env(safe-area-inset-top, 0px) + 80px); z-index: 16; width: min(340px, calc(100% - 32px)); background: var(--ink); color: var(--bar); border-radius: 10px; padding: 12px 12px 12px 16px; display: flex; gap: 12px; align-items: center; font-size: 13px; line-height: 1.4; box-shadow: 0 8px 24px rgba(0,0,0,.3); }
+/* Flip figure when the sidebar is not on screen */
+.pill { position: fixed; right: max(12px, env(safe-area-inset-right, 0px)); bottom: max(12px, env(safe-area-inset-bottom, 0px)); z-index: 16; display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+.pill .btn { box-shadow: 0 4px 14px rgba(0,0,0,.2); min-height: 34px; padding: 7px 12px; font-size: 13px; }
+body.docked .pill { display: none; }
+.hint { position: fixed; left: 50%; transform: translateX(-50%); top: calc(env(safe-area-inset-top, 0px) + 70px); z-index: 16; width: min(340px, calc(100% - 32px)); background: var(--ink); color: var(--bar); border-radius: 10px; padding: 12px 12px 12px 16px; display: flex; gap: 12px; align-items: center; font-size: 13px; line-height: 1.4; box-shadow: 0 8px 24px rgba(0,0,0,.3); }
 .hint svg { width: 28px; height: 28px; flex: none; }
-.hint button { margin-left: auto; background: transparent; border: 1px solid rgba(255,255,255,.35); color: inherit; border-radius: 6px; padding: 6px 10px; font: 500 12px var(--f-ui); }
+.hint button { margin-left: auto; background: transparent; border: 1px solid rgba(255,255,255,.35); color: inherit; border-radius: 6px; padding: 6px 10px; font: 12px var(--f-ui); }
 
-/* reader: one page large and scrollable (also used by Flip figure) */
+/* ---------- Flip figure view: the figure large, a quarter turn to the right ---------- */
 .reader { position: fixed; inset: 0; z-index: 40; background: var(--reader-bg); display: flex; flex-direction: column; }
-.rbar { flex: none; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding-block: 10px; padding-top: max(10px, env(safe-area-inset-top, 0px)); color: #fff; font-variant-numeric: tabular-nums; }
-.rbar .btn { color: #fff; border-color: rgba(255,255,255,.35); min-width: 38px; justify-content: center; }
-.rbar .lbl { min-width: 9ch; text-align: center; }
-.rbar .sp { flex: 1 1 auto; }
+.rbar { flex: none; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding-block: 10px; padding-top: max(10px, env(safe-area-inset-top, 0px)); padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); color: #fff; font-variant-numeric: tabular-nums; }
+.rbar .btn { color: #fff; border-color: rgba(255,255,255,.35); min-width: 38px; }
+.rbar .lbl { margin-right: auto; }
 .rscroll { flex: 1 1 auto; min-height: 0; overflow: auto; padding: 8px 16px max(24px, env(safe-area-inset-bottom, 0px)); -webkit-overflow-scrolling: touch; }
 .rscroll canvas { display: block; margin: 0 auto; background: #fff; box-shadow: 0 10px 40px rgba(0,0,0,.4); }
-.rscroll .loading { color: #c9d2d6; text-align: center; padding-top: 30vh; }
-#book .page { cursor: zoom-in; }
-body.immersive #book .page { cursor: default; }
 
 .toast { position: fixed; left: 50%; bottom: max(80px, env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--ink); color: var(--bar); padding: 10px 14px; border-radius: 8px; font-size: 13px; z-index: 50; max-width: calc(100% - 32px); }
 .err { max-width: 50ch; text-align: center; color: var(--muted); }
-
-@media (max-width: 860px) { .dl-wrap p { display: none; } }
-@media (max-width: 560px) {
-  .bar { gap: 8px; }
-  .bar h1 { font-size: 16px; }
-  .dl small, .dl .long { display: none; }
-  .btn.contents { padding: 9px 12px 9px 10px; }
-}
-@media (min-width: 561px) { .dl .short { display: none; } }
-@media (prefers-reduced-motion: reduce) { .top, .tools, .drawer { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .side, .float { transition: none !important; } }
 </style>
 </head>
 <body>
-<div class="top" id="top">
-  <header class="bar gutter">
-    <button class="btn contents" id="tocBtn" aria-controls="drawer">
-      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M2 4h12M2 8h12M2 12h8"/></svg>Contents</button>
+<aside class="side" id="side" aria-label="Contents">
+  <div class="side-head">
     <h1 id="title"></h1>
-    <button class="btn" id="resume" hidden>Continue at p. <span id="resumePage"></span></button>
-    <div class="dl-wrap">
-      <p>Prefer your own PDF reader? Download the full thesis to search, rotate pages and annotate.</p>
-      <a class="btn peach dl" href="thesis.pdf" download>
-        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M8 2v8M4.5 6.5 8 10l3.5-3.5M3 13h10"/></svg>
-        <span class="long">Download PDF</span><span class="short">PDF</span> <small class="size"></small></a>
-    </div>
-  </header>
-</div>
-
-<main class="stage gutter" id="stage"><p class="err">Loading the book…</p></main>
-<footer class="tools gutter" id="tools">
-  <button class="btn" id="prev" aria-label="Previous page">‹</button>
-  <span class="count" id="count"></span>
-  <button class="btn" id="next" aria-label="Next page">›</button>
-  <button class="btn" id="zoom" title="Read this page at full size">
-    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5 14 14M5 7h4M7 5v4"/></svg>Zoom</button>
-  <span id="flipSlot" style="display:contents"></span>
-</footer>
-
-<div class="scrim" id="scrim" hidden></div>
-<aside class="drawer" id="drawer" aria-label="Contents">
-  <header><h2>Contents</h2><button class="btn ghost icon-btn" id="tocClose" aria-label="Close contents">✕</button></header>
+    <button class="btn ghost icon-btn" id="sideToggle" aria-label="Hide sidebar"></button>
+  </div>
+  <div class="where">
+    <button class="btn icon-btn" id="prev" aria-label="Previous page">‹</button>
+    <span class="count" id="count"></span>
+    <button class="btn icon-btn" id="next" aria-label="Next page">›</button>
+  </div>
+  <div class="actions" id="actions"></div>
+  <h2 class="label">Contents</h2>
   <ol class="toc" id="toc"></ol>
+  <div class="side-foot">
+    <p>Prefer your own PDF reader? Download the full thesis to search, rotate pages and annotate.</p>
+    <a class="btn peach dl" href="thesis.pdf" download>
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M8 2v8M4.5 6.5 8 10l3.5-3.5M3 13h10"/></svg>
+      Download PDF <small class="size"></small></a>
+  </div>
 </aside>
+<div class="scrim" id="scrim" hidden></div>
+
+<main class="stage" id="stage"><p class="err">Loading the book…</p></main>
+
+<button class="btn teal float" id="opener" aria-controls="side">
+  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M2 4h12M2 8h12M2 12h8"/></svg>Contents</button>
+<a class="btn peach float dl" id="fabDl" href="thesis.pdf" download>
+  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M8 2v8M4.5 6.5 8 10l3.5-3.5M3 13h10"/></svg>PDF</a>
 
 <div class="pill" id="pill" hidden></div>
 <div class="hint" id="hint" hidden>
@@ -171,12 +163,9 @@ body.immersive #book .page { cursor: default; }
   <span>Turn your phone sideways to see two pages side by side.</span>
   <button id="hintClose">OK</button>
 </div>
-<div class="reader" id="reader" hidden role="dialog" aria-label="Page view">
-  <div class="rbar gutter">
-    <button class="btn" id="rPrev" aria-label="Previous page">‹</button>
+<div class="reader" id="reader" hidden role="dialog" aria-label="Figure view">
+  <div class="rbar">
     <span class="lbl" id="rLabel"></span>
-    <button class="btn" id="rNext" aria-label="Next page">›</button>
-    <span class="sp"></span>
     <button class="btn" id="rOut" aria-label="Zoom out">−</button>
     <button class="btn" id="rIn" aria-label="Zoom in">+</button>
     <button class="btn" id="rRot" aria-label="Rotate a quarter turn">
@@ -291,23 +280,61 @@ async function loadBook() {
 // ---------- reading position ----------
 const savedPos = () => parseInt(ls.get(POS_KEY), 10) || 0;
 function setCurrent(p) { currentPage = p; if (p > 1) ls.set(POS_KEY, String(p)); updateTocCurrent(); }
-function showResume() { const p = savedPos(); $('#resume').hidden = !(p > 1) || p > numPages; $('#resumePage').textContent = p; }
-$('#resume').onclick = () => { goTo(savedPos()); $('#resume').hidden = true; };
+let resumeAt = 0;   // shown in the sidebar until the reader moves on
+function showResume() { const p = savedPos(); resumeAt = p > 1 && p <= numPages ? p : 0; renderActions(); }
 
 // ---------- contents ----------
 function chapterAt(p) { let c = null; for (const ch of config.chapters) if (ch.page <= p) c = ch; return c; }
 function renderToc() {
+  // "Chapter 2 — Ex vivo drug…" is shown as a small "Chapter 2" label above the title.
   $('#toc').innerHTML = config.chapters.length
-    ? config.chapters.map(ch => `<li><a href="#" data-page="${ch.page}"><span>${esc(ch.title)}</span><span>${ch.page}</span></a></li>`).join('')
+    ? config.chapters.map(ch => {
+        const [lead, ...rest] = ch.title.split(' — ');
+        const label = rest.length ? `<small>${esc(lead)}</small>` : '';
+        return `<li><a href="#" data-page="${ch.page}">${label}<span>${esc(rest.length ? rest.join(' — ') : lead)}</span><span class="pg">${ch.page}</span></a></li>`;
+      }).join('')
     : '<li class="err" style="padding:12px">No chapters available.</li>';
   updateTocCurrent();
 }
-function updateTocCurrent() { const c = chapterAt(currentPage); $$('#toc a').forEach(a => a.setAttribute('aria-current', !!c && +a.dataset.page === c.page)); }
-function openDrawer(o) { $('#drawer').classList.toggle('open', o); $('#scrim').hidden = !o; if (o) setTimeout(() => $('#tocClose').focus(), 50); }
-$('#tocBtn').onclick = () => openDrawer(true);
-$('#tocClose').onclick = () => openDrawer(false);
-$('#scrim').onclick = () => openDrawer(false);
-$('#toc').onclick = e => { const a = e.target.closest('a'); if (!a) return; e.preventDefault(); goTo(+a.dataset.page); openDrawer(false); };
+let lastChapter = null;
+function updateTocCurrent() {
+  const c = chapterAt(currentPage);
+  $$('#toc a').forEach(a => a.setAttribute('aria-current', !!c && +a.dataset.page === c.page));
+  if (c !== lastChapter) { lastChapter = c; $('#toc a[aria-current="true"]')?.scrollIntoView({ block: 'nearest' }); }
+}
+$('#toc').onclick = e => { const a = e.target.closest('a'); if (!a) return; e.preventDefault(); goTo(+a.dataset.page); openSide(false); };
+
+// ---------- sidebar: docked next to the book, or a slide-in panel ----------
+// Docked on screens of 900 px and wider, unless the reader hid it. Otherwise it slides in from
+// the floating "Contents" button (on phones there's also a floating "PDF" button).
+const COLLAPSE_KEY = 'thesis-side-hidden';
+const ICON_HIDE = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M10 3 5 8l5 5"/></svg>';
+const ICON_PIN = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M6 3l5 5-5 5"/></svg>';
+const ICON_CLOSE = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 4l8 8M12 4l-8 8"/></svg>';
+const wideEnough = () => innerWidth >= 900 && !isPhone();
+function applyMode() {
+  const docked = wideEnough() && ls.get(COLLAPSE_KEY) !== '1';
+  document.body.classList.toggle('docked', docked);
+  document.body.classList.toggle('phone', isPhone());
+  openSide(false);
+  const t = $('#sideToggle');
+  if (docked) { t.innerHTML = ICON_HIDE; t.setAttribute('aria-label', 'Hide sidebar'); t.title = 'Hide sidebar'; }
+  else if (wideEnough()) { t.innerHTML = ICON_PIN; t.setAttribute('aria-label', 'Keep sidebar open'); t.title = 'Keep sidebar open'; }
+  else { t.innerHTML = ICON_CLOSE; t.setAttribute('aria-label', 'Close'); t.title = 'Close'; }
+}
+function openSide(o) {
+  if (document.body.classList.contains('docked')) o = false;
+  $('#side').classList.toggle('open', o); $('#scrim').hidden = !o;
+  if (o) setTimeout(() => $('#sideToggle').focus(), 50);
+}
+$('#opener').onclick = () => openSide(true);
+$('#scrim').onclick = () => openSide(false);
+$('#sideToggle').onclick = () => {
+  if (document.body.classList.contains('docked')) ls.set(COLLAPSE_KEY, '1');
+  else if (wideEnough()) ls.set(COLLAPSE_KEY, '0');
+  else { openSide(false); return; }
+  applyMode(); build(currentPage);   // the book gets (or gives back) the sidebar's width
+};
 function goTo(p) { if (flip) { flip.turnToPage(p - 1); onFlip(flip.getCurrentPageIndex()); } }
 
 // ---------- phones ----------
@@ -397,8 +424,16 @@ function flipButtons(pages, cls) {
   return marked.map(p => `<button class="${cls}" data-flip="${p}">${ICON_ROT} Flip figure${pages.length > 1 ? ` p. ${p}` : ''}</button>`).join('');
 }
 let visiblePages = [1];
+// Sidebar actions: "Flip figure" for sideways figures on the open pages, and "Continue at p. X".
+function renderActions() {
+  const resume = resumeAt && !visiblePages.includes(resumeAt) && currentPage <= 1
+    ? `<button class="btn" data-resume>Continue at p. ${resumeAt}</button>` : '';
+  $('#actions').innerHTML = flipButtons(visiblePages, 'btn peach') + resume;
+}
+$('#actions').addEventListener('click', e => { if (e.target.closest('[data-resume]')) { goTo(resumeAt); resumeAt = 0; renderActions(); } });
+// Flip figure when the sidebar isn't on screen: a floating button at the bottom.
 function updatePill() {
-  const html = document.body.classList.contains('chrome-off') ? flipButtons(visiblePages, 'btn peach') : '';
+  const html = document.body.classList.contains('docked') ? '' : flipButtons(visiblePages, 'btn peach');
   $('#pill').innerHTML = html; $('#pill').hidden = !html;
 }
 document.addEventListener('click', e => { const b = e.target.closest('[data-flip]'); if (b) { e.stopPropagation(); openReader(+b.dataset.flip, true); } }, true);
@@ -419,17 +454,16 @@ function onFlip(i) {
   const first = visiblePages[0], last = visiblePages[visiblePages.length - 1];
   schedule([...visiblePages, last + 1, last + 2, first - 1, first - 2, last + 3, last + 4]);
   clearFar(last);
-  const ch = chapterAt(last);
-  $('#count').innerHTML = `${ch ? `<b>${esc(ch.title)}</b>` : ''}${i === 0 ? 'Cover' : visiblePages.length > 1 ? `p. ${visiblePages[0]}–${visiblePages[1]} of ${numPages}` : `p. ${last} of ${numPages}`}`;
-  $('#flipSlot').innerHTML = flipButtons(visiblePages, 'btn peach');
+  $('#count').textContent = i === 0 ? 'Cover' : visiblePages.length > 1 ? `p. ${visiblePages[0]}–${visiblePages[1]} of ${numPages}` : `p. ${last} of ${numPages}`;
+  $('#prev').disabled = i === 0; $('#next').disabled = last >= numPages;
   setCurrent(last);
+  renderActions();
   updatePill();
 }
 function build(start) {
   cleanup.forEach(f => f()); cleanup = [];
   if (flip) { try { flip.destroy(); } catch {} flip = null; }
   const phone = isPhone();
-  document.body.classList.toggle('immersive', phone);
   setChrome(true);
   const single = phone ? isPortrait() : stage.getBoundingClientRect().width < 640;
   const { w, h } = sizeFor(single);
@@ -438,8 +472,7 @@ function build(start) {
   for (let n = 1; n <= numPages; n++) pages.push(makePage(n, w, h));
   flip = new St.PageFlip($('#book'), {
     width: w, height: h, size: 'fixed', showCover: true, usePortrait: single,
-    maxShadowOpacity: .45, mobileScrollSupport: false, flippingTime: 650, useMouseEvents: !phone,
-    disableFlipByClick: true   // a click opens the page large; drag a corner, the arrows or the keys to turn
+    maxShadowOpacity: .45, mobileScrollSupport: false, flippingTime: 650, useMouseEvents: !phone
   });
   flip.loadFromHTML(pages);
   Object.assign(flip, { _pages: pages, _w: w, _h: h, _single: single });
@@ -455,31 +488,23 @@ function build(start) {
     else if (t === 'next') { flip.flipNext(); setChrome(false); }
     else setChrome(document.body.classList.contains('chrome-off'));
   };
-  // Desktop: a plain click on a page opens it large. A drag that turned the page is not a click.
-  let turnedAt = 0;
-  flip.on('changeState', e => { if (e.data === 'flipping' || e.data === 'user_fold') turnedAt = Date.now(); });
-  if (!phone) $('#book').addEventListener('click', e => {
-    const el = e.target.closest('.page');
-    if (!el || flip.getState() !== 'read' || Date.now() - turnedAt < 400) return;
-    openReader(+el.dataset.n);
-  });
-  const key = e => { if (!$('#reader').hidden || $('#drawer').classList.contains('open')) return; if (e.key === 'ArrowRight') flip.flipNext(); if (e.key === 'ArrowLeft') flip.flipPrev(); };
+  // Desktop: click a page to turn it (the flipbook does this itself), or drag a corner, or use the keys.
+  const key = e => { if (!$('#reader').hidden || $('#side').classList.contains('open')) return; if (e.key === 'ArrowRight') flip.flipNext(); if (e.key === 'ArrowLeft') flip.flipPrev(); };
   document.addEventListener('keydown', key);
   cleanup.push(() => document.removeEventListener('keydown', key));
   updateHint();
   // Phones: show the controls briefly so people know they exist, then give the page the full screen.
   clearTimeout(build._t);
-  if (phone) build._t = setTimeout(() => { if (!$('#drawer').classList.contains('open')) setChrome(false); }, 2500);
+  if (phone) build._t = setTimeout(() => { if (!$('#side').classList.contains('open')) setChrome(false); }, 2500);
   clearTimeout(build._w); build._w = setTimeout(warmChapters, 1500);   // after the first view is on screen
 }
 
-// ---------- page view: one page large and scrollable; "Flip figure" opens it a quarter turn right ----------
+// ---------- Flip figure view: the page large and scrollable, a quarter turn to the right ----------
 const ZOOMS = [1, 1.5, 2, 3];
 let R = { n: 1, rot: 0, z: 0, task: null, gen: 0 };
 async function drawReader() {
   const gen = ++R.gen, scroll = $('#rScroll');
-  $('#rLabel').textContent = `p. ${R.n} of ${numPages}`;
-  $('#rPrev').disabled = R.n <= 1; $('#rNext').disabled = R.n >= numPages;
+  $('#rLabel').textContent = `Figure on p. ${R.n}`;
   $('#rOut').disabled = R.z === 0; $('#rIn').disabled = R.z === ZOOMS.length - 1;
   const page = await getPage(R.n);
   if (gen !== R.gen) return;
@@ -507,24 +532,18 @@ function openReader(n, figure = false) {
     drawReader();
   });
 }
-function readerPage(d) { const n = R.n + d; if (n < 1 || n > numPages) return; R.n = n; R.rot = 0; $('#rScroll').scrollTo(0, 0); drawReader(); }
 function readerZoom(d) { const z = Math.max(0, Math.min(ZOOMS.length - 1, R.z + d)); if (z !== R.z) { R.z = z; drawReader(); } }
 function closeReader() { $('#reader').hidden = true; if (R.task) R.task.cancel(); R.gen++; }
-$('#rPrev').onclick = () => readerPage(-1);
-$('#rNext').onclick = () => readerPage(1);
 $('#rIn').onclick = () => readerZoom(1);
 $('#rOut').onclick = () => readerZoom(-1);
 $('#rRot').onclick = () => { R.rot = (R.rot + 90) % 360; drawReader(); };
 $('#rClose').onclick = closeReader;
-$('#zoom').onclick = () => openReader(visiblePages[0]);
 document.addEventListener('keydown', e => {
   if (!$('#reader').hidden) {
     if (e.key === 'Escape') closeReader();
-    else if (e.key === 'ArrowLeft') readerPage(-1);
-    else if (e.key === 'ArrowRight') readerPage(1);
     else if (e.key === '+' || e.key === '=') readerZoom(1);
     else if (e.key === '-') readerZoom(-1);
-  } else if (e.key === 'Escape') openDrawer(false);
+  } else if (e.key === 'Escape') openSide(false);
 });
 
 if (DEMO) {
@@ -536,12 +555,13 @@ window.addEventListener('resize', () => {
   clearTimeout(rt);
   rt = setTimeout(() => {
     if (innerWidth === lastW && Math.abs(innerHeight - lastH) < 120) return;   // ignore mobile address-bar jitter
-    lastW = innerWidth; lastH = innerHeight; build(currentPage);
+    lastW = innerWidth; lastH = innerHeight; applyMode(); build(currentPage);
   }, 250);
 });
 (async () => {
+  applyMode();
   try { await loadBook(); build(1); showResume(); }
-  catch (e) { stage.innerHTML = `<p class="err">The book could not be loaded (${esc(e.message || e)}). You can still download the PDF from the top bar.</p>`; }
+  catch (e) { stage.innerHTML = `<p class="err">The book could not be loaded (${esc(e.message || e)}). You can still download the PDF from the sidebar.</p>`; }
 })();
 </script>
 </body>
