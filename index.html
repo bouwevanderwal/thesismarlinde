@@ -166,6 +166,39 @@ body.docked .booknav .navcontents { display: none; }
 .rscroll { position: relative; flex: 1 1 auto; min-height: 0; overflow: auto; padding: 8px 16px max(24px, env(safe-area-inset-bottom, 0px)); -webkit-overflow-scrolling: touch; }
 body.phone .rscroll { touch-action: none; }   /* the viewer handles pinch and one-finger dragging here too */
 .rscroll canvas { display: block; margin: 0 auto; background: #fff; box-shadow: 0 10px 40px rgba(0,0,0,.4); }
+/* Legend next to the figure (wide screens), under it (phone upright) or as a second tab (phone on its side) */
+.rbody { flex: 1 1 auto; min-height: 0; display: flex; }
+.rlegend { background: var(--panel); color: var(--ink); overflow: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; box-sizing: border-box; padding: 16px 20px max(20px, env(safe-area-inset-bottom, 0px)); }
+.rlegend h2 { font: 18px var(--f-ui); margin: 0 0 12px; }
+.rlegend canvas { display: block; width: 100%; height: auto; }
+.reader.lg-side .rlegend { flex: 0 0 min(440px, 36vw); border-left: 1px solid var(--line); }
+.reader.lg-side.lg-off .rlegend { display: none; }
+.reader.lg-below .rbody { flex-direction: column; }
+.reader.lg-below .rscroll { flex: 0 1 auto; max-height: 55%; padding-bottom: 12px; }
+.reader.lg-below .rlegend { flex: 1 1 auto; min-height: 0; border-radius: 14px 14px 0 0; padding: 14px 16px max(20px, env(safe-area-inset-bottom, 0px)); }
+.reader.lg-tab .rlegend { flex: 1 1 auto; }
+.reader.lg-tab:not(.show-legend) .rlegend, .reader.lg-tab.show-legend .rscroll { display: none; }
+.rbar .btn[aria-pressed="true"] { background: rgba(255,255,255,.16); }
+
+/* ---------- search: one box at the top left, arrows through the matches, like a PDF reader ---------- */
+.search { position: absolute; top: 12px; left: 12px; z-index: 6; display: flex; align-items: center; gap: 2px; background: var(--bar); color: var(--ink); border: 1px solid var(--line); border-radius: 8px; padding: 2px; box-shadow: 0 4px 14px rgba(0,0,0,.12); max-width: calc(100% - 24px); box-sizing: border-box; }
+.search .qopen { border: 0; background: none; color: var(--muted); padding: 7px 4px 7px 8px; cursor: pointer; display: grid; place-items: center; }
+.search .qopen svg { width: 15px; height: 15px; }
+.search input { font: 14px var(--f-ui); color: var(--ink); background: transparent; border: 0; outline: 0; width: 180px; min-width: 0; flex: 1 1 auto; padding: 6px 4px; -webkit-appearance: none; appearance: none; }
+.search input::-webkit-search-cancel-button { display: none; }
+.search .qc { font-size: 12px; color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; padding: 0 4px; }
+.search .btn { padding: 5px 8px; min-width: 30px; font-size: 15px; line-height: 1; border-color: transparent; }
+.search:not(.has-q) .qnav, .search:not(.has-q) .qclose { display: none; }
+body.phone .search { top: 8px; left: 8px; }
+body.phone .search:not(.open) { padding: 0; border-radius: 50%; }
+body.phone .search:not(.open) > :not(.qopen) { display: none; }
+body.phone .search:not(.open) .qopen { padding: 11px; }
+body.phone .search.open { right: 8px; }
+body.phone .search.open .qclose { display: inline-block; }
+body.phone .search input { font-size: 16px; }   /* 16px or more: iPhones don't zoom the whole page when you tap the box */
+.page .hits { position: absolute; inset: 0; pointer-events: none; z-index: 3; }
+.page .hits i { position: absolute; background: rgba(255, 214, 10, .42); mix-blend-mode: multiply; border-radius: 2px; }
+.page .hits i.cur { background: rgba(245, 140, 30, .55); box-shadow: 0 0 0 2px rgba(220, 110, 20, .9); }
 
 .toast { position: fixed; left: 50%; bottom: max(80px, env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--ink); color: var(--bar); padding: 10px 14px; border-radius: 8px; font-size: 13px; z-index: 50; max-width: calc(100% - 32px); }
 .err { max-width: 50ch; text-align: center; color: var(--muted); }
@@ -178,7 +211,7 @@ body.phone .rscroll { touch-action: none; }   /* the viewer handles pinch and on
 <meta property="og:description" content="PhD thesis by Marlinde Schoonbeek, Princess Máxima Center for Pediatric Oncology. Read it online as a book or download the PDF.">
 <meta property="og:url" content="https://marlindeschoonbeek.com/">
 <link rel="canonical" href="https://marlindeschoonbeek.com/">
-<meta property="og:image" content="https://marlindeschoonbeek.com/share.jpg?v=mwayoqq2">
+<meta property="og:image" content="https://marlindeschoonbeek.com/share.jpg?v=mwb819ps">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta name="twitter:card" content="summary_large_image">
@@ -202,6 +235,13 @@ body.phone .rscroll { touch-action: none; }   /* the viewer handles pinch and on
 
 <main class="stage-outer" id="stageOuter">
   <div class="stage" id="stage"><p class="err" id="loading">Loading the book…</p></div>
+  <div class="search" id="search" role="search" hidden>
+    <button class="qopen" id="qOpen" aria-label="Search the thesis"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="7" cy="7" r="4.6"/><path d="m10.5 10.5 3.8 3.8"/></svg></button>
+    <input id="q" type="search" placeholder="Search" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="search" aria-label="Search the thesis">
+    <span class="qc" id="qCount" aria-live="polite"></span>
+    <span class="qnav"><button class="btn ghost" id="qPrev" aria-label="Previous match">↑</button><button class="btn ghost" id="qNext" aria-label="Next match">↓</button></span>
+    <button class="btn ghost qclose" id="qClose" aria-label="Close search">×</button>
+  </div>
   <!-- floats over the bottom of the book -->
   <div class="booknav" id="booknav" hidden>
     <button class="btn teal navcontents" id="navContents" aria-controls="side">
@@ -227,13 +267,17 @@ body.phone .rscroll { touch-action: none; }   /* the viewer handles pinch and on
 <div class="reader" id="reader" hidden role="dialog" aria-label="Figure view">
   <div class="rbar">
     <span class="lbl" id="rLabel"></span>
+    <button class="btn" id="rLeg" hidden>Legend</button>
     <button class="btn" id="rOut" aria-label="Zoom out">−</button>
     <button class="btn" id="rIn" aria-label="Zoom in">+</button>
     <button class="btn" id="rRot" aria-label="Rotate a quarter turn">
       <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M13 8a5 5 0 1 1-2-4"/><path d="M11 1v3h3"/></svg></button>
     <button class="btn" id="rClose">Close</button>
   </div>
-  <div class="rscroll" id="rScroll"><canvas id="rCanvas"></canvas></div>
+  <div class="rbody">
+    <div class="rscroll" id="rScroll"><canvas id="rCanvas"></canvas></div>
+    <aside class="rlegend" id="rLegend" hidden aria-label="Legend"><h2>Legend</h2><div id="rLegendImg"></div></aside>
+  </div>
 </div>
 <div class="toast" id="toast" hidden></div>
 
@@ -742,6 +786,7 @@ function onFlip(i) {
   renderActions();
   updateNav();
   if (zoom) stage.scrollTo(0, 0);   // zoomed in: after turning, start at the top of the new pages
+  if (Q.re) paintHits();
 }
 function build(start, keep = null) {
   cleanup.forEach(f => f()); cleanup = [];
@@ -780,7 +825,7 @@ function build(start, keep = null) {
   $('#prev').onclick = () => flip.flipPrev();
   $('#next').onclick = () => flip.flipNext();
   // Desktop: click a page to turn it (the flipbook does this itself), or drag a corner, or use the keys.
-  const key = e => { if (!$('#reader').hidden || $('#side').classList.contains('open')) return; if (e.key === 'ArrowRight') flip.flipNext(); if (e.key === 'ArrowLeft') flip.flipPrev(); };
+  const key = e => { if (!$('#reader').hidden || $('#side').classList.contains('open') || e.target.closest('input')) return; if (e.key === 'ArrowRight') flip.flipNext(); if (e.key === 'ArrowLeft') flip.flipPrev(); };
   document.addEventListener('keydown', key);
   cleanup.push(() => document.removeEventListener('keydown', key));
   updateHint();
@@ -827,8 +872,9 @@ function openReader(n, figure = false) {
     const v = p.getViewport({ scale: 1 });
     // Flip figure: turn a portrait page a quarter to the right; a landscape page is already upright here.
     R.n = n; R.f = 1; R.rot = figure && v.height > v.width ? 90 : 0;
-    $('#reader').hidden = false; $('#rScroll').scrollTo(0, 0);
-    drawReader();
+    $('#reader').classList.remove('show-legend');
+    $('#reader').hidden = false; layoutReader(); $('#rScroll').scrollTo(0, 0); $('#rLegend').scrollTo(0, 0);
+    drawReader(); drawLegend();
   });
 }
 function readerZoom(d) {
@@ -880,6 +926,167 @@ function readerZoom(d) {
   sc.addEventListener('pointerup', end);
   sc.addEventListener('pointercancel', end);
 })();
+// The figure's legend (config.legends, found by the admin): a cut-out of the page it's printed on, so the
+// typesetting stays exactly as in the book (italics, superscripts, symbols).
+const LEG_KEY = 'thesis-legend';
+function legendMode() {
+  if (!config.legends || !config.legends[R.n]) return '';
+  if (innerWidth >= 900) return 'side';            // beside the figure
+  return innerHeight > innerWidth ? 'below' : 'tab';   // phone upright: under it; on its side: a second tab
+}
+function layoutReader() {
+  const m = legendMode(), rd = $('#reader'), b = $('#rLeg');
+  rd.classList.remove('lg-side', 'lg-below', 'lg-tab');
+  if (m) rd.classList.add('lg-' + m);
+  rd.classList.toggle('lg-off', m === 'side' && ls.get(LEG_KEY) === 'off');
+  $('#rLegend').hidden = !m;
+  b.hidden = !m || m === 'below';
+  b.textContent = m === 'tab' && rd.classList.contains('show-legend') ? 'Figure' : 'Legend';
+  b.setAttribute('aria-pressed', String(m === 'side' && !rd.classList.contains('lg-off')));
+}
+$('#rLeg').onclick = () => {
+  const rd = $('#reader');
+  if (legendMode() === 'side') ls.set(LEG_KEY, rd.classList.contains('lg-off') ? 'on' : 'off');
+  else rd.classList.toggle('show-legend');
+  layoutReader(); drawReader(); drawLegend();
+};
+let legGen = 0;
+async function drawLegend() {
+  const L = config.legends && config.legends[R.n], holder = $('#rLegendImg'), gen = ++legGen;
+  if (!L) return;
+  const page = await getPage(L.page), v1 = page.getViewport({ scale: 1 });
+  const [x0, y0, x1, y1] = L.box || [0, 0, v1.width, v1.height];   // no box: the whole page
+  const cssW = holder.clientWidth || 400, res = Math.min(isPhone() ? 2 : RES, 3);
+  const s = cssW / (x1 - x0) * res;
+  const vp = page.getViewport({ scale: s, offsetX: -x0 * s, offsetY: -y0 * s });
+  const c = document.createElement('canvas');
+  c.width = Math.floor((x1 - x0) * s); c.height = Math.floor((y1 - y0) * s);
+  try { await page.render({ canvasContext: c.getContext('2d'), viewport: vp }).promise; } catch { return; }
+  if (gen !== legGen) { c.width = c.height = 0; return; }
+  holder.querySelectorAll('canvas').forEach(o => { o.width = o.height = 0; });
+  holder.replaceChildren(c);
+}
+let legRt;
+addEventListener('resize', () => {
+  clearTimeout(legRt);
+  legRt = setTimeout(() => { if (!$('#reader').hidden) { layoutReader(); drawReader(); drawLegend(); } }, 250);
+});
+
+// ---------- search ----------
+// The text of every page is in search.json (made by the admin), fetched only when someone searches.
+// Marks on the visible pages come from the PDF's own text positions, joined exactly as the admin joins them.
+const Q = { data: null, loading: null, q: '', re: null, hits: [], cur: -1, text: new Map() };
+const qBox = $('#search'), qIn = $('#q');
+const pageString = items => { let s = ''; const starts = []; for (const it of items) { starts.push(s.length); s += it.str + (it.hasEOL ? '\n' : ''); } return { s, starts }; };
+async function searchSetup() {   // show the box only when this website has a search index
+  try { const r = await fetch('search.json', { method: 'HEAD', cache: 'no-cache' }); if (r.ok) qBox.hidden = false; } catch {}
+}
+function loadIndex() {
+  if (!Q.loading) Q.loading = fetch('search.json', { cache: 'no-cache' }).then(r => r.ok ? r.json() : null).then(d => {
+    // An index made for another PDF would point to the wrong pages: then searching is off.
+    Q.data = d && d.pdf === config.pdf && d.pages && d.pages.length === numPages ? d.pages : [];
+  }).catch(() => { Q.loading = null; Q.data = null; });
+  return Q.loading;
+}
+let qT;
+qIn.addEventListener('input', () => { clearTimeout(qT); qT = setTimeout(runSearch, 200); qBox.classList.toggle('has-q', !!qIn.value.trim()); });
+qIn.addEventListener('focus', () => loadIndex());
+async function runSearch() {
+  clearTimeout(qT);
+  const q = qIn.value.trim();
+  Q.q = q; Q.hits = []; Q.cur = -1; Q.re = null;
+  qBox.classList.toggle('has-q', !!q);
+  const out = $('#qCount');
+  if (q.length < 2) { out.textContent = ''; paintHits(); return; }
+  await loadIndex();
+  if (Q.q !== q) return;   // typed on meanwhile
+  if (!Q.data || !Q.data.length) { out.textContent = 'Search not available'; return; }
+  Q.re = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\s+/g, '\\s+'), 'gi');
+  Q.data.forEach((t, i) => { const m = t.match(Q.re); if (m) for (let k = 0; k < m.length; k++) Q.hits.push({ page: i + 1, k }); });
+  if (!Q.hits.length) { out.textContent = 'No matches'; paintHits(); return; }
+  const from = Math.min(...visiblePages), i = Q.hits.findIndex(h => h.page >= from);   // start where you are
+  goHit(i < 0 ? 0 : i);
+}
+function goHit(i) {
+  if (!Q.hits.length) return;
+  Q.cur = (i + Q.hits.length) % Q.hits.length;
+  $('#qCount').textContent = `${Q.cur + 1} of ${Q.hits.length}`;
+  const h = Q.hits[Q.cur];
+  if (!visiblePages.includes(h.page)) goTo(h.page);   // turning paints the marks
+  else paintHits();
+}
+// Rectangles (in % of the page) around each match on page n: one list of rectangles per match.
+async function hitBoxes(n) {
+  const page = await getPage(n);
+  if (!Q.text.has(n)) Q.text.set(n, await page.getTextContent());
+  const tc = Q.text.get(n), { s, starts } = pageString(tc.items);
+  const el = flip && flip._el.get(n), base = page.getViewport({ scale: 1 });
+  let rot = page.rotate;
+  if (el && base.width > base.height && el.offsetHeight > el.offsetWidth) rot += 90;   // as drawn in the book
+  const vp = page.getViewport({ scale: 1, rotation: rot % 360 });
+  const out = [], re = new RegExp(Q.re.source, 'gi'); let m;
+  while ((m = re.exec(s))) {
+    if (!m[0].length) { re.lastIndex++; continue; }
+    const a = m.index, z = a + m[0].length, rects = [];
+    tc.items.forEach((it, i) => {
+      const s0 = starts[i], s1 = s0 + it.str.length;
+      if (!it.str.length || s1 <= a || s0 >= z) return;
+      const f0 = (Math.max(a, s0) - s0) / it.str.length, f1 = (Math.min(z, s1) - s0) / it.str.length;
+      const [A, B, C, D, E, F] = it.transform, la = Math.hypot(A, B) || 1, lu = Math.hypot(C, D) || 1, h = it.height || lu;
+      const pt = (t, u) => vp.convertToViewportPoint(E + A / la * it.width * t + C / lu * h * u, F + B / la * it.width * t + D / lu * h * u);
+      const ps = [pt(f0, -0.22), pt(f1, -0.22), pt(f0, 0.92), pt(f1, 0.92)], xs = ps.map(q => q[0]), ys = ps.map(q => q[1]);
+      rects.push([Math.min(...xs) / vp.width, Math.min(...ys) / vp.height, Math.max(...xs) / vp.width, Math.max(...ys) / vp.height].map(v => v * 100));
+    });
+    out.push(rects);
+  }
+  return out;
+}
+let paintGen = 0;
+async function paintHits() {
+  const gen = ++paintGen, cur = Q.hits[Q.cur];
+  const marks = [];
+  if (Q.re && flip) for (const n of visiblePages) {
+    if (!Q.hits.some(h => h.page === n)) continue;
+    const boxes = await hitBoxes(n).catch(() => []);
+    if (gen !== paintGen) return;
+    marks.push([n, boxes]);
+  }
+  $$('.page .hits').forEach(el => el.remove());
+  let curEl = null;
+  for (const [n, boxes] of marks) {
+    const el = flip._el.get(n); if (!el) continue;
+    const layer = document.createElement('div'); layer.className = 'hits';
+    boxes.forEach((rects, k) => rects.forEach(([x0, y0, x1, y1]) => {
+      const i = document.createElement('i');
+      i.style.cssText = `left:${x0}%;top:${y0}%;width:${x1 - x0}%;height:${y1 - y0}%`;
+      if (cur && cur.page === n && cur.k === k) { i.className = 'cur'; curEl = curEl || i; }
+      layer.append(i);
+    }));
+    el.append(layer);
+  }
+  if (zoom && curEl) curEl.scrollIntoView({ block: 'center', inline: 'center' });   // zoomed in: bring the match into view
+}
+function openSearch() { qBox.classList.add('open'); loadIndex(); qIn.focus(); qIn.select(); }
+function closeSearch() { qIn.value = ''; runSearch(); qBox.classList.remove('open'); qIn.blur(); }
+$('#qOpen').onclick = openSearch;
+$('#qClose').onclick = closeSearch;
+$('#qNext').onclick = () => goHit(Q.cur + 1);
+$('#qPrev').onclick = () => goHit(Q.cur - 1);
+qIn.addEventListener('keydown', e => {
+  if (e.key === 'Enter' || e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+    e.preventDefault();
+    const back = e.key === 'ArrowUp' || (e.key === 'Enter' && e.shiftKey);
+    if (qIn.value.trim() !== Q.q) runSearch(); else goHit(Q.cur + (back ? -1 : 1));
+  } else if (e.key === 'Escape') closeSearch();
+  e.stopPropagation();   // typing here never turns pages or zooms
+});
+// Ctrl+F / Cmd+F goes to this box; pressed again while in the box, the browser's own search opens.
+document.addEventListener('keydown', e => {
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'f' && !qBox.hidden && document.activeElement !== qIn && $('#reader').hidden) {
+    e.preventDefault(); openSearch();
+  }
+}, true);
+
 function closeReader() { $('#reader').hidden = true; if (R.task) R.task.cancel(); R.gen++; }
 $('#rIn').onclick = () => readerZoom(1);
 $('#rOut').onclick = () => readerZoom(-1);
@@ -933,7 +1140,7 @@ window.addEventListener('resize', () => {
 });
 (async () => {
   applyMode();
-  try { await loadBook(); build(1); showResume(); }
+  try { await loadBook(); build(1); showResume(); if (!DRAFT) searchSetup(); }
   catch (e) {
     // Plain words for the visitor, a direct download link, and the technical reason in small print so a
     // screenshot tells us what went wrong.
