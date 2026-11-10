@@ -367,6 +367,7 @@ async function loadBook() {
   // Use the labels only if they are plain numbers (not "i, ii, iii" or empty); otherwise show PDF page numbers.
   labels = await doc.getPageLabels().catch(() => null);
   if (labels && !labels.slice(1).every(l => /^\d+$/.test(l))) labels = null;
+  covers = !!labels && numPages > 2 && labels[0] === labels[1];   // page 1 shares its number with page 2: it's a cover
   const v1 = (await getPage(1)).getViewport({ scale: 1 });
   aspect = v1.width / v1.height;
   printW = v1.width * 96 / 72;   // 100% = printed size
@@ -389,7 +390,7 @@ function showResume() { const p = savedPos(); resumeAt = p > 1 && p <= numPages 
 // Printed page numbers. Internally everything counts PDF pages (chapters and flip pages in config.json too);
 // only what the reader sees uses the numbers printed in the book. They come from the PDF's own page labels
 // (InDesign writes them), so a cover in front of page 1 doesn't make every number one off.
-let labels = null;
+let labels = null, covers = false;   // covers: the PDF has a front and back cover outside the page numbering
 const pn = n => (labels && labels[n - 1]) || String(n);
 function chapterAt(p) { let c = null; for (const ch of config.chapters) if (ch.page <= p) c = ch; return c; }
 function renderToc() {
@@ -445,7 +446,7 @@ $('#sideToggle').onclick = () => {
   else { openSide(false); return; }
   applyMode(); build(currentPage);   // the book gets (or gives back) the sidebar's width
 };
-function goTo(p) { if (flip) { flip.turnToPage(p - 1); onFlip(flip.getCurrentPageIndex()); } }
+function goTo(p) { if (flip) { flip.turnToPage(flip._slot.get(p) ?? p - 1); onFlip(flip.getCurrentPageIndex()); } }
 
 // ---------- phones ----------
 // The admin preview can force phone mode, since a desktop mouse never counts as a touch screen.
@@ -455,11 +456,25 @@ function updateHint() { $('#hint').hidden = !(isPhone() && isPortrait() && ls.ge
 $('#hintClose').onclick = () => { ls.set(HINT_KEY, 'done'); updateHint(); };
 
 // ---------- pages ----------
-function makePage(n, w, h, keepCanvas = null) {
+// Positions in the book ("slots") versus PDF pages. Like a printed book, even page numbers sit on the left
+// and odd ones on the right. Where the PDF doesn't line up with that (a front cover in front of page 1),
+// an empty page goes in between, like the inside of a cover. The rest of the site keeps counting PDF pages.
+function layout(single) {
+  const slots = [1];   // PDF page 1 is always the closed front cover
+  if (single || !labels) { for (let n = 2; n <= numPages; n++) slots.push(n); return slots; }
+  const wantsLeft = n => (covers && n === numPages) || +labels[n - 1] % 2 === 0;   // back cover: alone, on the left
+  for (let n = 2; n <= numPages; n++) {
+    if (wantsLeft(n) !== (slots.length % 2 === 1)) slots.push(0);   // odd positions are left-hand pages
+    slots.push(n);
+  }
+  return slots;
+}
+function makePage(n, w, h, keepCanvas = null, side = '', hard = false) {
   const el = document.createElement('div');
-  el.className = 'page' + (n > 1 && n < numPages ? (n % 2 === 0 ? ' l' : ' r') : '');
-  if (n === 1 || n === numPages) el.dataset.density = 'hard';
+  el.className = 'page' + (side ? ' ' + side : '');
+  if (hard) el.dataset.density = 'hard';
   el.style.width = w + 'px'; el.style.height = h + 'px';
+  if (!n) { el.classList.add('blank'); return el; }   // an empty page, e.g. the inside of the cover
   // After zooming, the old picture is shown stretched until the sharp one is drawn: no blank pages.
   if (keepCanvas) { keepCanvas.style.width = keepCanvas.style.height = '100%'; el.append(keepCanvas); }
   else el.innerHTML = `<div class="ph">p. ${esc(pn(n))}</div>`;
@@ -479,7 +494,7 @@ function schedule(order) {
 }
 function pump() {
   while (busy < PARALLEL && queue.length) {
-    const n = queue.shift(), book = flip, el = book && book._pages[n - 1];
+    const n = queue.shift(), book = flip, el = book && book._el.get(n);
     if (!el || el.dataset.state) continue;
     el.dataset.state = 'busy'; busy++;
     const c = document.createElement('canvas');
@@ -495,8 +510,7 @@ function pump() {
   }
 }
 function clearFar(center) {
-  flip._pages.forEach((el, k) => {
-    const n = k + 1;
+  flip._el.forEach((el, n) => {
     const keep = isPhone() ? (zoom ? 2 : 3) : (zoom ? 4 : KEEP);   // how many pages either side stay drawn
     if (Math.abs(n - center) <= keep || (!el.dataset.state && !el.querySelector('canvas')) || CHAPTER_PAGES.has(n)) return;
     const c = el.querySelector('canvas'); if (c) { c.width = c.height = 0; c.remove(); }
@@ -511,7 +525,10 @@ function clearFar(center) {
 // On computers, while the reader is idle, those spreads are drawn into the book in advance and
 // kept, so jumping from the contents is instant. Phones skip this to spare data and memory.
 let CHAPTER_PAGES = new Set(), warmTask = null, warmPage = 0, warmRun = 0;
-const spreadOf = p => p <= 1 ? [1] : p % 2 === 0 ? [p, p + 1] : [p - 1, p];
+function spreadOf(p) {   // the PDF pages shown together with page p
+  const s = flip._slot.get(p), left = s === 0 ? 0 : s % 2 ? s : s - 1;
+  return (s === 0 ? [0] : [left, left + 1]).map(k => flip._slots[k]).filter(Boolean);
+}
 async function warmChapters() {
   if (spareData || !flip || flip._warmStarted) return;
   flip._warmStarted = true;
@@ -521,7 +538,7 @@ async function warmChapters() {
   while (todo.length) {
     while (busy || queue.length) await new Promise(r => setTimeout(r, 300));   // the reader always goes first
     if (run !== warmRun || book !== flip) return;                               // book was rebuilt
-    const n = todo[0], el = book._pages[n - 1];
+    const n = todo[0], el = book._el.get(n);
     if (!el || el.dataset.state) { todo.shift(); continue; }
     el.dataset.state = 'busy'; warmPage = n;
     const c = document.createElement('canvas');
@@ -710,13 +727,16 @@ if (window.visualViewport) visualViewport.addEventListener('resize', () => {
 // ---------- the flipbook ----------
 function onFlip(i) {
   let vis;
+  const slots = flip._slots;
   if (flip._single || i === 0) vis = [i];
-  else { const left = i % 2 === 1 ? i : i - 1; vis = [left, left + 1].filter(k => k < numPages); }   // spreads are (2,3), (4,5)…
-  visiblePages = vis.map(k => k + 1);
+  else { const left = i % 2 === 1 ? i : i - 1; vis = [left, left + 1].filter(k => k < slots.length); }   // positions (1,2), (3,4)…
+  visiblePages = vis.map(k => slots[k]).filter(Boolean);   // empty pages don't count
   const first = visiblePages[0], last = visiblePages[visiblePages.length - 1];
   schedule([...visiblePages, last + 1, last + 2, first - 1, first - 2, last + 3, last + 4]);
   clearFar(last);
-  $('#count').textContent = i === 0 ? 'Cover' : visiblePages.length > 1 ? `p. ${pn(visiblePages[0])}–${pn(visiblePages[1])} of ${pn(numPages)}` : `p. ${pn(last)} of ${pn(numPages)}`;
+  const total = pn(covers ? numPages - 1 : numPages);   // the back cover isn't a numbered page
+  $('#count').textContent = i === 0 ? 'Cover' : covers && last === numPages ? 'Back cover'
+    : visiblePages.length > 1 ? `p. ${pn(visiblePages[0])}–${pn(visiblePages[1])} of ${total}` : `p. ${pn(last)} of ${total}`;
   $('#prev').disabled = i === 0; $('#next').disabled = last >= numPages;
   setCurrent(last);
   renderActions();
@@ -728,9 +748,9 @@ function build(start, keep = null) {
   const carry = new Map();   // finished pictures near the current page, reused as stand-ins
   if (flip) {
     const near = isPhone() ? 2 : 6;
-    flip._pages.forEach((el, k) => {
+    flip._el.forEach((el, n) => {
       const c = el.querySelector('canvas'); if (!c) return;
-      if (Math.abs(k + 1 - currentPage) <= near) carry.set(k + 1, c); else { c.width = c.height = 0; }   // free the rest right away
+      if (Math.abs(n - currentPage) <= near) carry.set(n, c); else { c.width = c.height = 0; }   // free the rest right away
     });
     try { flip.destroy(); } catch {} flip = null;
   }
@@ -739,8 +759,12 @@ function build(start, keep = null) {
   const single = phone ? isPortrait() : !zoom && stage.getBoundingClientRect().width < 640;
   const { w, h } = sizeFor(single);
   stage.innerHTML = `<div class="bookwrap"><div id="book"></div></div>`;
-  const pages = [];
-  for (let n = 1; n <= numPages; n++) pages.push(makePage(n, w, h, carry.get(n)));
+  const slots = layout(single), last = slots.length - 1, pages = [], els = new Map(), slotOf = new Map();
+  slots.forEach((n, k) => {
+    const side = k === 0 || k === last ? '' : k % 2 ? 'l' : 'r';   // spine shading; the covers have none
+    const el = makePage(n, w, h, carry.get(n), side, k === 0 || k === last);
+    pages.push(el); if (n) { els.set(n, el); slotOf.set(n, k); }
+  });
   flip = new St.PageFlip($('#book'), {
     width: w, height: h, size: 'fixed', showCover: true, usePortrait: single,
     // Zoomed in, dragging moves the view, so the flipbook's own corner-dragging is switched off.
@@ -749,9 +773,9 @@ function build(start, keep = null) {
     drawShadow: false, mobileScrollSupport: false, flippingTime: 650, useMouseEvents: !phone && !zoom
   });
   flip.loadFromHTML(pages);
-  Object.assign(flip, { _pages: pages, _w: w, _h: h, _single: single });
+  Object.assign(flip, { _slots: slots, _el: els, _slot: slotOf, _w: w, _h: h, _single: single });
   flip.on('flip', e => onFlip(e.data));
-  if (start > 1) flip.turnToPage(start - 1);
+  if (start > 1) flip.turnToPage(slotOf.get(start));
   onFlip(flip.getCurrentPageIndex());
   $('#prev').onclick = () => flip.flipPrev();
   $('#next').onclick = () => flip.flipNext();
