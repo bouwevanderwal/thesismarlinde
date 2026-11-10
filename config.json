@@ -1,75 +1,75 @@
 {
-  "pdf": "Schoonbeek binnenwerk 17x24_LR_DEF2.pdf",
+  "pdf": "Schoonbeek_binnenwerk_17x24_LR_met_cover.pdf",
   "title": "Expanding the precision medicine landscape of paediatric solid tumours with ex vivo drug screening",
   "chapters": [
     {
       "title": "Chapter 1 — General introduction and outline of thesis",
-      "page": 7
+      "page": 8
     },
     {
       "title": "Chapter 2 — Ex vivo drug sensitivity profiling to complement molecular profiling in pediatric precision oncology",
-      "page": 27
+      "page": 28
     },
     {
       "title": "Chapter 3 — Sensitivity profiling reveals consistent drug responses across preclinical neuroblastoma models",
-      "page": 83
+      "page": 84
     },
     {
       "title": "Chapter 4 — MicroOrganoSphere technology to advance drug screening in neuroblastoma precision medicine",
-      "page": 131
+      "page": 132
     },
     {
       "title": "Chapter 5 — A microscopy-based readout to assess tumour-specific viability in neuroblastoma co-cultures and short-term cultured patient samples",
-      "page": 161
+      "page": 162
     },
     {
       "title": "Chapter 6 — General discussion",
-      "page": 199
+      "page": 200
     },
     {
       "title": "Nederlandse samenvatting",
-      "page": 216
+      "page": 217
     },
     {
       "title": "List of publications",
-      "page": 221
-    },
-    {
-      "title": "Acknowledgements",
       "page": 222
     },
     {
+      "title": "Acknowledgements",
+      "page": 223
+    },
+    {
       "title": "Curriculum Vitae",
-      "page": 232
+      "page": 233
     }
   ],
   "flip": [
-    33,
     34,
-    36,
+    35,
     37,
-    41,
+    38,
     42,
-    45,
+    43,
     46,
-    49,
+    47,
     50,
-    87,
-    89,
+    51,
+    88,
     90,
-    93,
+    91,
     94,
-    96,
+    95,
     97,
-    140,
+    98,
     141,
-    146,
+    142,
     147,
-    169,
+    148,
     170,
-    174,
+    171,
     175,
-    180,
-    181
+    176,
+    181,
+    182
   ]
 }

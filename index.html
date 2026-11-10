@@ -171,6 +171,7 @@ body.phone .rscroll { touch-action: none; }   /* the viewer handles pinch and on
 .err { max-width: 50ch; text-align: center; color: var(--muted); }
 @media (prefers-reduced-motion: reduce) { .side { transition: none !important; } }
 </style>
+<!--share-->
 </head>
 <body>
 <aside class="side" id="side" aria-label="Contents">
@@ -190,7 +191,7 @@ body.phone .rscroll { touch-action: none; }   /* the viewer handles pinch and on
 <div class="scrim" id="scrim" hidden></div>
 
 <main class="stage-outer" id="stageOuter">
-  <div class="stage" id="stage"><p class="err">Loading the book…</p></div>
+  <div class="stage" id="stage"><p class="err" id="loading">Loading the book…</p></div>
   <!-- floats over the bottom of the book -->
   <div class="booknav" id="booknav" hidden>
     <button class="btn teal navcontents" id="navContents" aria-controls="side">
@@ -297,14 +298,29 @@ async function readOutline(d) {
 }
 
 // ---------- load: thesis.pdf + config.json next to this page, or the admin's draft ----------
+// Runs fn up to 3 times, waiting 1 s and then 2 s in between; errors marked final are not retried.
+async function retry(fn, tries = 3) {
+  for (let i = 1; ; i++) {
+    try { return await fn(); }
+    catch (e) { if (e.final || i >= tries) throw e; await new Promise(r => setTimeout(r, 1000 * i)); }
+  }
+}
+function setLoading(text) { const p = $('#loading'); if (p) p.textContent = text; }
 async function loadBook() {
   const draft = DRAFT;
   let size = 0, chaptersFromPdf = false;
   // config.json says which PDF to show ("pdf"), so the file can keep its own name.
   if (draft) config = draft.config;
   else {
-    try { const r = await fetch('config.json', { cache: 'no-cache' }); if (!r.ok) throw 0; config = await r.json(); }
-    catch { config = { title: 'Thesis', chapters: [], flip: [] }; chaptersFromPdf = true; }
+    // A network hiccup must not count as "there is no config.json": that used to send the viewer to a
+    // thesis.pdf that doesn't exist. Only a real 404 means "no config"; anything else is tried again.
+    config = await retry(async () => {
+      const r = await fetch('config.json', { cache: 'no-cache' });
+      if (r.status === 404) return null;
+      if (!r.ok) throw new Error(`config.json: server answered ${r.status}`);
+      return r.json();
+    });
+    if (!config) { config = { title: 'Thesis', chapters: [], flip: [] }; chaptersFromPdf = true; }
   }
   let url = new URL(config.pdf || 'thesis.pdf', location.href).href;
   if (draft && draft.blob) {
@@ -314,8 +330,21 @@ async function loadBook() {
     // Range requests: only the pages you look at (plus the next few) are fetched, so a 40 MB thesis
     // opens as fast as a small one and a short visit costs a few MB instead of the whole file.
     spareData = isPhone() || !!(navigator.connection && navigator.connection.saveData);
-    try { doc = await pdfjsLib.getDocument({ url, disableAutoFetch: true, disableStream: true, rangeChunkSize: 524288, isEvalSupported: false }).promise; }
-    catch (e) { throw new Error(`the file “${decodeURIComponent(url.split('/').pop())}” was not found next to this page. Check the "pdf" name in config.json`); }
+    // Tried three times. The last try fetches the PDF in one go instead of in pieces: slower, but it also works
+    // behind networks (some company or hospital proxies) that mangle piece-by-piece requests.
+    let attempt = 0;
+    doc = await retry(() => {
+      const whole = ++attempt === 3;
+      if (whole) setLoading('Loading the book… (slow connection, fetching the whole PDF)');
+      const task = pdfjsLib.getDocument({ url, isEvalSupported: false, ...(whole ? { disableRange: true }
+        : { disableAutoFetch: true, disableStream: true, rangeChunkSize: 524288 }) });
+      if (whole) task.onProgress = p => p.total && setLoading(`Loading the book… ${Math.round(100 * p.loaded / p.total)}%`);
+      return task.promise.catch(e => {
+        if (e && e.name === 'MissingPDFException')   // a real 404: retrying won't help, and it's a setup mistake
+          throw Object.assign(new Error(`the file “${decodeURIComponent(url.split('/').pop())}” is not on the website. Check the "pdf" name in config.json`), { final: true });
+        throw e;
+      });
+    });
     // File size for the download button, asked separately: never wait for the whole PDF to arrive.
     fetch(url, { method: 'HEAD' }).then(r => {
       const len = +r.headers.get('content-length');
@@ -325,6 +354,9 @@ async function loadBook() {
   if (chaptersFromPdf) config.chapters = await readOutline(doc);
   config.flip = config.flip || []; config.chapters = config.chapters || [];
   numPages = doc.numPages;
+  // Use the labels only if they are plain numbers (not "i, ii, iii" or empty); otherwise show PDF page numbers.
+  labels = await doc.getPageLabels().catch(() => null);
+  if (labels && !labels.slice(1).every(l => /^\d+$/.test(l))) labels = null;
   const v1 = (await getPage(1)).getViewport({ scale: 1 });
   aspect = v1.width / v1.height;
   printW = v1.width * 96 / 72;   // 100% = printed size
@@ -344,6 +376,11 @@ let resumeAt = 0;   // shown in the sidebar until the reader moves on
 function showResume() { const p = savedPos(); resumeAt = p > 1 && p <= numPages ? p : 0; renderActions(); }
 
 // ---------- contents ----------
+// Printed page numbers. Internally everything counts PDF pages (chapters and flip pages in config.json too);
+// only what the reader sees uses the numbers printed in the book. They come from the PDF's own page labels
+// (InDesign writes them), so a cover in front of page 1 doesn't make every number one off.
+let labels = null;
+const pn = n => (labels && labels[n - 1]) || String(n);
 function chapterAt(p) { let c = null; for (const ch of config.chapters) if (ch.page <= p) c = ch; return c; }
 function renderToc() {
   // "Chapter 2 — Ex vivo drug…" is shown as a small "Chapter 2" label above the title.
@@ -351,7 +388,7 @@ function renderToc() {
     ? config.chapters.map(ch => {
         const [lead, ...rest] = ch.title.split(' — ');
         const label = rest.length ? `<small>${esc(lead)}</small>` : '';
-        return `<li><a href="#" data-page="${ch.page}">${label}<span>${esc(rest.length ? rest.join(' — ') : lead)}</span><span class="pg">${ch.page}</span></a></li>`;
+        return `<li><a href="#" data-page="${ch.page}">${label}<span>${esc(rest.length ? rest.join(' — ') : lead)}</span><span class="pg">${esc(pn(ch.page))}</span></a></li>`;
       }).join('')
     : '<li class="err" style="padding:12px">No chapters available.</li>';
   updateTocCurrent();
@@ -415,7 +452,7 @@ function makePage(n, w, h, keepCanvas = null) {
   el.style.width = w + 'px'; el.style.height = h + 'px';
   // After zooming, the old picture is shown stretched until the sharp one is drawn: no blank pages.
   if (keepCanvas) { keepCanvas.style.width = keepCanvas.style.height = '100%'; el.append(keepCanvas); }
-  else el.innerHTML = `<div class="ph">p. ${n}</div>`;
+  else el.innerHTML = `<div class="ph">p. ${esc(pn(n))}</div>`;
   el.dataset.n = n;
   return el;
 }
@@ -453,7 +490,7 @@ function clearFar(center) {
     const keep = isPhone() ? (zoom ? 2 : 3) : (zoom ? 4 : KEEP);   // how many pages either side stay drawn
     if (Math.abs(n - center) <= keep || (!el.dataset.state && !el.querySelector('canvas')) || CHAPTER_PAGES.has(n)) return;
     const c = el.querySelector('canvas'); if (c) { c.width = c.height = 0; c.remove(); }
-    if (!el.querySelector('.ph')) el.insertAdjacentHTML('afterbegin', `<div class="ph">p. ${n}</div>`);
+    if (!el.querySelector('.ph')) el.insertAdjacentHTML('afterbegin', `<div class="ph">p. ${esc(pn(n))}</div>`);
     delete el.dataset.state;
     getPage(n).then(p => p.cleanup()).catch(() => {});
   });
@@ -488,13 +525,13 @@ async function warmChapters() {
 }
 function flipButtons(pages, cls) {
   const marked = pages.filter(p => config.flip.includes(p));
-  return marked.map(p => `<button class="${cls}" data-flip="${p}">${ICON_ROT} Flip figure${pages.length > 1 ? ` p. ${p}` : ''}</button>`).join('');
+  return marked.map(p => `<button class="${cls}" data-flip="${p}">${ICON_ROT} Flip figure${pages.length > 1 ? ` p. ${esc(pn(p))}` : ''}</button>`).join('');
 }
 let visiblePages = [1];
 // Sidebar action: "Continue at p. X" while you're still on the cover.
 function renderActions() {
   const resume = resumeAt && !visiblePages.includes(resumeAt) && currentPage <= 1
-    ? `<button class="btn" data-resume>Continue at p. ${resumeAt}</button>` : '';
+    ? `<button class="btn" data-resume>Continue at p. ${esc(pn(resumeAt))}</button>` : '';
   $('#actions').innerHTML = resume;
 }
 $('#actions').addEventListener('click', e => { if (e.target.closest('[data-resume]')) { goTo(resumeAt); resumeAt = 0; renderActions(); } });
@@ -669,7 +706,7 @@ function onFlip(i) {
   const first = visiblePages[0], last = visiblePages[visiblePages.length - 1];
   schedule([...visiblePages, last + 1, last + 2, first - 1, first - 2, last + 3, last + 4]);
   clearFar(last);
-  $('#count').textContent = i === 0 ? 'Cover' : visiblePages.length > 1 ? `p. ${visiblePages[0]}–${visiblePages[1]} of ${numPages}` : `p. ${last} of ${numPages}`;
+  $('#count').textContent = i === 0 ? 'Cover' : visiblePages.length > 1 ? `p. ${pn(visiblePages[0])}–${pn(visiblePages[1])} of ${pn(numPages)}` : `p. ${pn(last)} of ${pn(numPages)}`;
   $('#prev').disabled = i === 0; $('#next').disabled = last >= numPages;
   setCurrent(last);
   renderActions();
@@ -731,7 +768,7 @@ const R_STEPS = [1, 1.5, 2, 3, 4], R_MAX = 4;
 let R = { n: 1, rot: 0, f: 1, task: null, gen: 0 };
 async function drawReader(anchor = null) {
   const gen = ++R.gen, scroll = $('#rScroll');
-  $('#rLabel').textContent = `Figure on p. ${R.n}`;
+  $('#rLabel').textContent = `Figure on p. ${pn(R.n)}`;
   $('#rOut').disabled = R.f <= 1.001; $('#rIn').disabled = R.f >= R_MAX - 0.001;
   const page = await getPage(R.n);
   if (gen !== R.gen) return;
@@ -863,7 +900,15 @@ window.addEventListener('resize', () => {
 (async () => {
   applyMode();
   try { await loadBook(); build(1); showResume(); }
-  catch (e) { stage.innerHTML = `<p class="err">The book could not be loaded (${esc(e.message || e)}). You can still download the PDF from the sidebar.</p>`; }
+  catch (e) {
+    // Plain words for the visitor, a direct download link, and the technical reason in small print so a
+    // screenshot tells us what went wrong.
+    console.error(e);
+    const pdf = config && (config.download || config.pdf);
+    stage.innerHTML = `<div class="err"><p>The book couldn't be loaded right now.</p>
+      <p><button class="btn" onclick="location.reload()">Try again</button>${pdf ? ` <a class="btn" href="${esc(pdf)}" download>Download the PDF</a>` : ''}</p>
+      <p style="font-size:12px">${esc(e.message || e.name || e)}</p></div>`;
+  }
 })();
 </script>
 </body>
