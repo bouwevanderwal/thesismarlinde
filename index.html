@@ -211,7 +211,7 @@ body.phone .search input { font-size: 16px; }   /* 16px or more: iPhones don't z
 <meta property="og:description" content="PhD thesis by Marlinde Schoonbeek, Princess Máxima Center for Pediatric Oncology. Read it online as a book or download the PDF.">
 <meta property="og:url" content="https://marlindeschoonbeek.com/">
 <link rel="canonical" href="https://marlindeschoonbeek.com/">
-<meta property="og:image" content="https://marlindeschoonbeek.com/share.jpg?v=mwb819ps">
+<meta property="og:image" content="https://marlindeschoonbeek.com/share.jpg?v=mwnwnhhb">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta name="twitter:card" content="summary_large_image">
@@ -270,8 +270,6 @@ body.phone .search input { font-size: 16px; }   /* 16px or more: iPhones don't z
     <button class="btn" id="rLeg" hidden>Legend</button>
     <button class="btn" id="rOut" aria-label="Zoom out">−</button>
     <button class="btn" id="rIn" aria-label="Zoom in">+</button>
-    <button class="btn" id="rRot" aria-label="Rotate a quarter turn">
-      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M13 8a5 5 0 1 1-2-4"/><path d="M11 1v3h3"/></svg></button>
     <button class="btn" id="rClose">Close</button>
   </div>
   <div class="rbody">
@@ -844,7 +842,39 @@ function build(start, keep = null) {
 // ---------- Flip figure view: the page large and scrollable, a quarter turn to the right ----------
 // R.f is the zoom factor: 1 fits the figure to the width of the screen, up to 4.
 const R_STEPS = [1, 1.5, 2, 3, 4], R_MAX = 4;
-let R = { n: 1, rot: 0, f: 1, task: null, gen: 0 };
+let R = { n: 1, rot: 0, f: 1, task: null, gen: 0, v1: null, sharpT: 0, sharp: false, touching: 0, wheelAt: 0 };
+const readerW = () => Math.min($('#rScroll').clientWidth - 32, 1100);
+// Zooming has two steps, so it responds at once even on heavy pages (drawing page 170 anew takes
+// seconds): first the picture already there is stretched to the new size (instant, briefly soft), with
+// the point under the mouse, fingers or middle of the screen kept in place; then, once the zooming
+// pauses, the page is drawn sharp at that size and swapped in (drawReader).
+function sizeReader(anchor) {
+  $('#rOut').disabled = R.f <= 1.001; $('#rIn').disabled = R.f >= R_MAX - 0.001;
+  const c = $('#rCanvas'); if (!R.v1 || !c.width) return;
+  const cssW = readerW() * R.f, cssH = cssW * R.v1.height / R.v1.width;
+  c.style.width = Math.floor(cssW) + 'px'; c.style.height = Math.floor(cssH) + 'px';
+  if (anchor) keepAnchor(c, anchor, cssW, cssH);
+}
+// scroll so that the anchored spot of the figure is under the same point of the screen again
+function keepAnchor(c, a, cssW, cssH) {
+  const sc = $('#rScroll'), s = sc.getBoundingClientRect(), r = c.getBoundingClientRect();
+  const left = r.left - s.left + sc.scrollLeft, top = r.top - s.top + sc.scrollTop;   // figure within the scroll area
+  sc.scrollTo(left + a.fx * cssW - a.cx, top + a.fy * cssH - a.cy);
+}
+function zoomReader(f, anchor, wait = 150) {
+  R.f = Math.min(R_MAX, Math.max(1, f));
+  if (R.task) R.task.cancel(); R.gen++; R.sharp = false;   // a sharp picture for the old size is no use any more
+  sizeReader(anchor);
+  clearTimeout(R.sharpT);
+  R.sharpT = setTimeout(() => { R.sharpT = 0; drawReader(); }, wait);
+}
+// the spot of the figure under a point of the screen (default: the middle of the figure area)
+function anchorAt(x, y) {
+  const sc = $('#rScroll'), s = sc.getBoundingClientRect(), r = $('#rCanvas').getBoundingClientRect();
+  if (!r.width) return null;
+  if (x == null) { x = s.left + sc.clientWidth / 2; y = s.top + sc.clientHeight / 2; }
+  return { fx: (x - r.left) / r.width, fy: (y - r.top) / r.height, cx: x - s.left, cy: y - s.top };
+}
 async function drawReader(anchor = null) {
   const gen = ++R.gen, scroll = $('#rScroll');
   $('#rLabel').textContent = `Figure on p. ${pn(R.n)}`;
@@ -852,8 +882,8 @@ async function drawReader(anchor = null) {
   const page = await getPage(R.n);
   if (gen !== R.gen) return;
   const rot = (page.rotate + R.rot) % 360;
-  const v1 = page.getViewport({ scale: 1, rotation: rot });
-  const cssW = Math.min(scroll.clientWidth - 32, 1100) * R.f;
+  const v1 = R.v1 = page.getViewport({ scale: 1, rotation: rot });
+  const cssW = readerW() * R.f;
   const cssH = cssW * v1.height / v1.width;
   const res = Math.min(isPhone() ? 2 : RES, Math.sqrt((isPhone() ? 4e6 : 16e6) / (cssW * cssH)));   // pixel budget (tighter on phones)
   const vp = page.getViewport({ scale: cssW / v1.width * res, rotation: rot });
@@ -863,15 +893,18 @@ async function drawReader(anchor = null) {
   if (R.task) R.task.cancel();
   R.task = page.render({ canvasContext: c.getContext('2d'), viewport: vp });
   try { await R.task.promise; } catch { return; }   // cancelled by a newer request
+  R.task = null;
   if (gen !== R.gen) return;
   const old = $('#rCanvas'); c.id = 'rCanvas'; old.replaceWith(c); old.width = old.height = 0;
-  if (anchor) scroll.scrollTo(c.offsetLeft + anchor.fx * cssW - anchor.cx, c.offsetTop + anchor.fy * cssH - anchor.cy);
+  R.sharp = true;
+  if (anchor) keepAnchor(c, anchor, cssW, cssH);
 }
 function openReader(n, figure = false) {
   getPage(n).then(p => {
     const v = p.getViewport({ scale: 1 });
     // Flip figure: turn a portrait page a quarter to the right; a landscape page is already upright here.
-    R.n = n; R.f = 1; R.rot = figure && v.height > v.width ? 90 : 0;
+    R.n = n; R.f = 1; R.rot = figure && v.height > v.width ? 90 : 0; R.v1 = null;
+    clearTimeout(R.sharpT); R.sharpT = 0; R.sharp = false; $('#rCanvas').width = 0;   // never show the previous figure
     $('#reader').classList.remove('show-legend');
     $('#reader').hidden = false; layoutReader(); $('#rScroll').scrollTo(0, 0); $('#rLegend').scrollTo(0, 0);
     drawReader(); drawLegend();
@@ -879,19 +912,36 @@ function openReader(n, figure = false) {
 }
 function readerZoom(d) {
   const next = d > 0 ? R_STEPS.find(s => s > R.f + 0.01) : [...R_STEPS].reverse().find(s => s < R.f - 0.01);
-  if (!next) return;
-  const sc = $('#rScroll'), c = $('#rCanvas'), r = c.getBoundingClientRect(), s = sc.getBoundingClientRect();
-  const cx = sc.clientWidth / 2, cy = sc.clientHeight / 2;   // keep the middle of the screen in place
-  R.f = next;
-  drawReader({ fx: (s.left + cx - r.left) / r.width, fy: (s.top + cy - r.top) / r.height, cx, cy });
+  if (next) zoomReader(next, anchorAt());   // keep the middle of the screen in place
 }
+// Pinching a laptop trackpad reaches web pages as Ctrl + scroll wheel (Chrome, Edge, Firefox; also a
+// mouse wheel with Ctrl or Cmd held). It zooms the figure around the fingers instead of the web page.
+// Two fingers without pinching simply scroll around the figure.
+$('#reader').addEventListener('wheel', e => {
+  if (!e.ctrlKey && !e.metaKey) return;
+  e.preventDefault();
+  R.wheelAt = Date.now();
+  const k = Math.exp(-Math.max(-50, Math.min(50, e.deltaY)) / 100);   // a mouse notch at most ×1.65
+  zoomReader(R.f * k, e.target.closest('#rScroll') ? anchorAt(e.clientX, e.clientY) : anchorAt(), 200);
+}, { passive: false });
+// Safari on a Mac reports trackpad pinching as its own gesture events (scale counts from the start).
+// On iPhones and iPads the same events come with finger pinches, handled below as touch, so skip those.
+(() => {
+  let gz = null;
+  $('#reader').addEventListener('gesturestart', e => { gz = R.touching ? null : { f0: R.f, x: e.clientX, y: e.clientY }; });
+  $('#reader').addEventListener('gesturechange', e => {
+    if (!gz || R.touching || Date.now() - R.wheelAt < 300) return;
+    zoomReader(gz.f0 * e.scale, anchorAt(gz.x, gz.y), 200);
+  });
+  $('#reader').addEventListener('gestureend', () => { gz = null; });
+})();
 // Touch in the figure view: one finger drags, two fingers pinch. Works exactly like the book.
 (() => {
   const sc = $('#rScroll'), pts = new Map(); let g = null;
   sc.addEventListener('pointerdown', e => {
     if (e.pointerType !== 'touch') return;
     if (e.isPrimary) { pts.clear(); g = null; }
-    pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    pts.set(e.pointerId, { x: e.clientX, y: e.clientY }); R.touching = pts.size;
     try { sc.setPointerCapture(e.pointerId); } catch {}
     if (pts.size === 1) g = { type: 'pan', x: e.clientX, y: e.clientY, sl: sc.scrollLeft, st: sc.scrollTop };
     else if (pts.size === 2) {
@@ -914,13 +964,13 @@ function readerZoom(d) {
   });
   const end = e => {
     if (e.pointerType !== 'touch' || !pts.has(e.pointerId)) return;
-    pts.delete(e.pointerId);
+    pts.delete(e.pointerId); R.touching = pts.size;
     if (!g || g.type !== 'pinch') { if (!pts.size) g = null; return; }
     if (pts.size) return;                                 // wait until both fingers are off
     const s = sc.getBoundingClientRect(), r = g.c.getBoundingClientRect();
     const anchor = { fx: (g.cx - r.left) / r.width, fy: (g.cy - r.top) / r.height, cx: g.cx - s.left, cy: g.cy - s.top };
-    if (Math.abs(g.scale - 1) > 0.02) { R.f = g.f0 * g.scale; drawReader(anchor); }   // old picture stays until the sharp one is ready
-    else g.c.style.transform = '';
+    g.c.style.transform = '';
+    if (Math.abs(g.scale - 1) > 0.02) zoomReader(g.f0 * g.scale, anchor, 0);   // stretched at once, sharp after
     g = null;
   };
   sc.addEventListener('pointerup', end);
@@ -1087,10 +1137,9 @@ document.addEventListener('keydown', e => {
   }
 }, true);
 
-function closeReader() { $('#reader').hidden = true; if (R.task) R.task.cancel(); R.gen++; }
+function closeReader() { $('#reader').hidden = true; if (R.task) R.task.cancel(); R.gen++; clearTimeout(R.sharpT); R.sharpT = 0; }
 $('#rIn').onclick = () => readerZoom(1);
 $('#rOut').onclick = () => readerZoom(-1);
-$('#rRot').onclick = () => { R.rot = (R.rot + 90) % 360; drawReader(); };
 $('#rClose').onclick = closeReader;
 document.addEventListener('keydown', e => {
   if (!$('#reader').hidden) {
